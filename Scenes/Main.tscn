@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://main0001"]
+
+[ext_resource type="Script" path="res://Scripts/GameController.cs" id="1"]
+[ext_resource type="PackedScene" uid="uid://board001" path="res://Scenes/Board.tscn" id="2"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1")
+
+[node name="Board" parent="." instance=ExtResource("2")]
+position = Vector2(40, 40)

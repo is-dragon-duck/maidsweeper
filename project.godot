@@ -11,8 +11,10 @@ config_version=5
 [application]
 
 config/name="Maidsweeper"
-config/features=PackedStringArray("4.6", "GL Compatibility")
+run/main_scene="uid://main0001"
+config/features=PackedStringArray("4.6", "C#", "GL Compatibility")
 config/icon="res://icon.svg"
+config/run/main_scene="res://Scenes/Main.tscn"
 
 [dotnet]
 
