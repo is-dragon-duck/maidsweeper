@@ -5,13 +5,13 @@ namespace Maidsweeper.Core.Models;
 /// </summary>
 public static class CardDefinitions
 {
-    public static Card ImperiousInstructions => new()
+    public static Card RecallImperious => new()
     {
         Id = "",
-        Name = "Imperious Instructions",
+        Name = "Recall - Imperious",
         Description = "Distribute clue pips across tiles via bag draw.",
         Cost = 2,
-        EffectType = CardEffectType.Instructions
+        EffectType = CardEffectType.Recall
     };
 
     public static Card Spritz => new()
@@ -20,7 +20,7 @@ public static class CardDefinitions
         Name = "Spritz",
         Description = "Target a tile. Learn if it's safe or dangerous.",
         Cost = 1,
-        EffectType = CardEffectType.Scout
+        EffectType = CardEffectType.Spritz
     };
 
     public static Card Tingle => new()
@@ -53,7 +53,7 @@ public static class CardDefinitions
 
     /// <summary>
     /// Creates the 10-card starter deck with unique IDs.
-    /// 1x Imperious Instructions, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
+    /// 1x Recall - Imperious, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
     /// </summary>
     public static List<Card> CreateStarterDeck()
     {
@@ -62,7 +62,7 @@ public static class CardDefinitions
 
         return
         [
-            ImperiousInstructions with { Id = nextId() },
+            RecallImperious with { Id = nextId() },
             Spritz with { Id = nextId() },
             Spritz with { Id = nextId() },
             Spritz with { Id = nextId() },

@@ -24,8 +24,8 @@ public static class CardEffectSystem
         // Execute effect
         state = card.EffectType switch
         {
-            CardEffectType.Scout => ExecuteSpritz(state, targets, card),
-            CardEffectType.Instructions => ExecuteInstructions(state, rng, card),
+            CardEffectType.Spritz => ExecuteSpritz(state, targets, card),
+            CardEffectType.Recall => ExecuteInstructions(state, rng, card),
             CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
             CardEffectType.Tingle => ExecuteTingle(state, rng, card),
             CardEffectType.Twirl => ExecuteTwirl(state, card),
@@ -48,7 +48,7 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Spritz (Scout): Target 1 unrevealed tile.
+    /// Spritz: Target 1 unrevealed tile.
     /// If Player or Neutral → safe: annotate {Player, Neutral}
     /// If Rival or Mine → dangerous: annotate {Rival, Mine}
     /// </summary>
@@ -66,13 +66,13 @@ public static class CardEffectSystem
         var isSafe = tile.Owner == TileOwner.Player || tile.Owner == TileOwner.Neutral;
         var subset = isSafe
             ? new HashSet<TileOwner> { TileOwner.Player, TileOwner.Neutral }
-            : new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Mine };
+            : new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Noble };
 
         return AnnotationSystem.AddOwnerSubset(state, pos, subset);
     }
 
     /// <summary>
-    /// Imperious Instructions: No targeting. Distributes clue pips via bag draw.
+    /// Recall - Imperious: No targeting. Distributes clue pips via bag draw.
     /// </summary>
     public static GameState ExecuteInstructions(GameState state, Random rng, Card card)
     {
@@ -134,14 +134,14 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Tingle: No targeting. Picks 1 random unrevealed rival/mine tile
+    /// Tingle: No targeting. Picks 1 random unrevealed rival/noble tile
     /// and annotates it with its exact owner type.
     /// Prefers "ambiguous" tiles (no single-owner annotation yet).
     /// </summary>
     public static GameState ExecuteTingle(GameState state, Random rng, Card card)
     {
         var candidates = state.Board.Tiles
-            .Where(t => !t.IsRevealed && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Mine))
+            .Where(t => !t.IsRevealed && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Noble))
             .ToList();
 
         if (candidates.Count == 0)
@@ -176,7 +176,7 @@ public static class CardEffectSystem
         TileOwner.Player => 4,
         TileOwner.Neutral => 3,
         TileOwner.Rival => 2,
-        TileOwner.Mine => 1,
+        TileOwner.Noble => 1,
         _ => 0
     };
 }

@@ -1,28 +1,35 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maidsweeper.Core", "core\Maidsweeper.Core.csproj", "{8DC83991-5468-40D8-94F2-27645EE1CFED}"
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maidsweeper", "Maidsweeper.csproj", "{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maidsweeper.Tests", "tests\Maidsweeper.Tests.csproj", "{8CF69178-DEEF-4332-9611-782280DAF843}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maidsweeper.Core", "core\Maidsweeper.Core.csproj", "{2FF57262-9107-4E90-B8C0-C408B3D86B8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maidsweeper.Tests", "tests\Maidsweeper.Tests.csproj", "{411393F2-E28D-46CF-ACFF-E8B9FA60F045}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
-		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
+		ExportDebug|Any CPU = ExportDebug|Any CPU
+		ExportRelease|Any CPU = ExportRelease|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{8DC83991-5468-40D8-94F2-27645EE1CFED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8DC83991-5468-40D8-94F2-27645EE1CFED}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8DC83991-5468-40D8-94F2-27645EE1CFED}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8DC83991-5468-40D8-94F2-27645EE1CFED}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8CF69178-DEEF-4332-9611-782280DAF843}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8CF69178-DEEF-4332-9611-782280DAF843}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8CF69178-DEEF-4332-9611-782280DAF843}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8CF69178-DEEF-4332-9611-782280DAF843}.Release|Any CPU.Build.0 = Release|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.ExportDebug|Any CPU.ActiveCfg = ExportDebug|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.ExportDebug|Any CPU.Build.0 = ExportDebug|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.ExportRelease|Any CPU.ActiveCfg = ExportRelease|Any CPU
+		{595EECD0-58A9-4EC8-8B37-73C074CD3A7C}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.ExportRelease|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FF57262-9107-4E90-B8C0-C408B3D86B8A}.ExportRelease|Any CPU.Build.0 = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.ExportRelease|Any CPU.ActiveCfg = Debug|Any CPU
+		{411393F2-E28D-46CF-ACFF-E8B9FA60F045}.ExportRelease|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 EndGlobal

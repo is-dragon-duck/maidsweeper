@@ -20,7 +20,7 @@ public class DeckSystemTests
 
     private static Card MakeCard(string id, string name = "Test", int cost = 1, bool exhaust = false)
     {
-        return new Card { Id = id, Name = name, Cost = cost, EffectType = CardEffectType.Scout, Exhaust = exhaust };
+        return new Card { Id = id, Name = name, Cost = cost, EffectType = CardEffectType.Spritz, Exhaust = exhaust };
     }
 
     [Fact]
@@ -35,8 +35,8 @@ public class DeckSystemTests
     {
         var deck = CardDefinitions.CreateStarterDeck();
 
-        Assert.Single(deck.Where(c => c.EffectType == CardEffectType.Instructions));
-        Assert.Equal(3, deck.Count(c => c.EffectType == CardEffectType.Scout));
+        Assert.Single(deck.Where(c => c.EffectType == CardEffectType.Recall));
+        Assert.Equal(3, deck.Count(c => c.EffectType == CardEffectType.Spritz));
         Assert.Equal(3, deck.Count(c => c.EffectType == CardEffectType.Tingle));
         Assert.Equal(2, deck.Count(c => c.EffectType == CardEffectType.Scurry));
         Assert.Single(deck.Where(c => c.EffectType == CardEffectType.Twirl));
@@ -262,7 +262,7 @@ public class DeckSystemTests
     public void SpendEnergy_EnergyReducedRefunds1()
     {
         var state = CreateTestState(energy: 3);
-        var card = new Card { Id = "er", Name = "Reduced", Cost = 2, EffectType = CardEffectType.Scout, EnergyReduced = true };
+        var card = new Card { Id = "er", Name = "Reduced", Cost = 2, EffectType = CardEffectType.Spritz, EnergyReduced = true };
 
         var newState = DeckSystem.SpendEnergy(state, card);
 

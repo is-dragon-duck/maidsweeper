@@ -59,8 +59,8 @@ public static class TurnSystem
     {
         var board = state.Board;
 
-        // Check for mine reveal (loss)
-        if (board.Tiles.Any(t => t.IsRevealed && t.Owner == TileOwner.Mine))
+        // Check for noble reveal (loss)
+        if (board.Tiles.Any(t => t.IsRevealed && t.Owner == TileOwner.Noble))
             return GameStatus.Lost;
 
         // Check if all player tiles revealed (win)

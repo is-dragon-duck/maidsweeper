@@ -11,7 +11,7 @@ public static class BoardSystem
     public static Board CreateBoard(LevelConfig config, Random rng)
     {
         var totalTiles = config.Width * config.Height;
-        var expectedTiles = config.PlayerCount + config.RivalCount + config.NeutralCount + config.MineCount;
+        var expectedTiles = config.PlayerCount + config.RivalCount + config.NeutralCount + config.NobleCount;
 
         if (expectedTiles != totalTiles)
         {
@@ -24,7 +24,7 @@ public static class BoardSystem
         owners.AddRange(Enumerable.Repeat(TileOwner.Player, config.PlayerCount));
         owners.AddRange(Enumerable.Repeat(TileOwner.Rival, config.RivalCount));
         owners.AddRange(Enumerable.Repeat(TileOwner.Neutral, config.NeutralCount));
-        owners.AddRange(Enumerable.Repeat(TileOwner.Mine, config.MineCount));
+        owners.AddRange(Enumerable.Repeat(TileOwner.Noble, config.NobleCount));
 
         Shuffle(owners, rng);
 

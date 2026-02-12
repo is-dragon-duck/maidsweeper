@@ -83,20 +83,20 @@ public class TurnSystemTests
     }
 
     [Fact]
-    public void CheckGameStatus_LostWhenMineRevealed()
+    public void CheckGameStatus_LostWhenNobleRevealed()
     {
         // Create board with mines
         var config = new LevelConfig
         {
             Width = 3, Height = 3,
-            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, MineCount = 1
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
         };
         var rng = new Random(42);
         var board = BoardSystem.CreateBoard(config, rng);
 
-        // Find and reveal a mine
-        var minePos = board.Tiles.First(t => t.Owner == TileOwner.Mine).Position;
-        board = BoardSystem.RevealTile(board, minePos, PlayerType.Player);
+        // Find and reveal a noble
+        var noblePos = board.Tiles.First(t => t.Owner == TileOwner.Noble).Position;
+        board = BoardSystem.RevealTile(board, noblePos, PlayerType.Player);
 
         var state = new GameState { Board = board };
         Assert.Equal(GameStatus.Lost, TurnSystem.CheckGameStatus(state));
@@ -116,7 +116,7 @@ public class TurnSystemTests
     {
         Assert.True(TurnSystem.ShouldEndTurn(new Tile { Position = new(0, 0), Owner = TileOwner.Rival }));
         Assert.True(TurnSystem.ShouldEndTurn(new Tile { Position = new(0, 0), Owner = TileOwner.Neutral }));
-        Assert.True(TurnSystem.ShouldEndTurn(new Tile { Position = new(0, 0), Owner = TileOwner.Mine }));
+        Assert.True(TurnSystem.ShouldEndTurn(new Tile { Position = new(0, 0), Owner = TileOwner.Noble }));
     }
 
     [Fact]

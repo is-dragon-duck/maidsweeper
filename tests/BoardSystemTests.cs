@@ -25,7 +25,7 @@ public class BoardSystemTests
         Assert.Equal(12, board.Tiles.Count(t => t.Owner == TileOwner.Player));
         Assert.Equal(10, board.Tiles.Count(t => t.Owner == TileOwner.Rival));
         Assert.Equal(8, board.Tiles.Count(t => t.Owner == TileOwner.Neutral));
-        Assert.Equal(0, board.Tiles.Count(t => t.Owner == TileOwner.Mine));
+        Assert.Equal(0, board.Tiles.Count(t => t.Owner == TileOwner.Noble));
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class BoardSystemTests
         var badConfig = new LevelConfig
         {
             Width = 6, Height = 5,
-            PlayerCount = 10, RivalCount = 10, NeutralCount = 8, MineCount = 0
+            PlayerCount = 10, RivalCount = 10, NeutralCount = 8, NobleCount = 0
         };
 
         Assert.Throws<ArgumentException>(() =>
@@ -151,7 +151,7 @@ public class BoardSystemTests
         var config = new LevelConfig
         {
             Width = 3, Height = 3,
-            PlayerCount = 4, RivalCount = 3, NeutralCount = 2, MineCount = 0
+            PlayerCount = 4, RivalCount = 3, NeutralCount = 2, NobleCount = 0
         };
 
         // Use a seeded random and find the actual layout

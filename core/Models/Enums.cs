@@ -5,7 +5,7 @@ public enum TileOwner
     Player,
     Rival,
     Neutral,
-    Mine
+    Noble
 }
 
 public enum GameStatus
@@ -23,9 +23,9 @@ public enum PlayerType
 
 public enum CardEffectType
 {
-    Scout,        // Spritz — is it safe or dangerous?
-    Instructions, // Imperious Instructions — bag-draw clue pips
-    Scurry,       // Scurry — reveal the safer tile
-    Tingle,       // Tingle — sense a random rival/mine tile
-    Twirl         // Twirl — gain copper
+    Spritz,  // Is it safe or dangerous?
+    Recall,  // Bag-draw clue pips (Recall - Imperious, Recall - Vague, etc.)
+    Scurry,  // Reveal the safer tile
+    Tingle,  // Sense a random rival/noble tile
+    Twirl    // Gain copper
 }

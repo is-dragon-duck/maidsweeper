@@ -14,7 +14,7 @@ public class CardEffectTests
         var config = new LevelConfig
         {
             Width = 3, Height = 3,
-            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, MineCount = 1
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
         };
         var rng = new Random(seed);
         var board = BoardSystem.CreateBoard(config, rng);
@@ -63,7 +63,7 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var playerPos = FindFirstUnrevealed(state, TileOwner.Player);
 
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var newState = CardEffectSystem.ExecuteSpritz(state, [playerPos], spritz);
 
         var annotation = newState.Board.GetTile(playerPos).Annotations.OwnerSubset;
@@ -71,7 +71,7 @@ public class CardEffectTests
         Assert.Contains(TileOwner.Player, annotation);
         Assert.Contains(TileOwner.Neutral, annotation);
         Assert.DoesNotContain(TileOwner.Rival, annotation);
-        Assert.DoesNotContain(TileOwner.Mine, annotation);
+        Assert.DoesNotContain(TileOwner.Noble, annotation);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var neutralPos = FindFirstUnrevealed(state, TileOwner.Neutral);
 
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var newState = CardEffectSystem.ExecuteSpritz(state, [neutralPos], spritz);
 
         var annotation = newState.Board.GetTile(neutralPos).Annotations.OwnerSubset;
@@ -94,28 +94,28 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var rivalPos = FindFirstUnrevealed(state, TileOwner.Rival);
 
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var newState = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz);
 
         var annotation = newState.Board.GetTile(rivalPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
-        Assert.Equal(new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Mine }, annotation);
+        Assert.Equal(new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Noble }, annotation);
     }
 
     [Fact]
-    public void Spritz_MultipleSpritzIntersectsSubsets()
+    public void Spritz_MultipleAnnotationSpritzIntersectsSubsets()
     {
         var state = CreateTestGame();
         // Find a rival tile
         var rivalPos = FindFirstUnrevealed(state, TileOwner.Rival);
 
-        // First Spritz: dangerous → {Rival, Mine}
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
-        state = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz);
+        // Annotate as either rival or neutral
+        var rivalOrNeutral = new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Neutral };
+        state = AnnotationSystem.AddOwnerSubset(state, rivalPos, rivalOrNeutral);
 
-        // Tingle the same tile to narrow to {Rival}
-        var exactRival = new HashSet<TileOwner> { TileOwner.Rival };
-        state = AnnotationSystem.AddOwnerSubset(state, rivalPos, exactRival);
+        // Spritz: dangerous → {Rival, Mine}
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
+        state = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz);
 
         var annotation = state.Board.GetTile(rivalPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
@@ -132,7 +132,7 @@ public class CardEffectTests
         // Reveal the tile first
         state = state with { Board = BoardSystem.RevealTile(state.Board, pos, PlayerType.Player) };
 
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         Assert.Throws<ArgumentException>(() =>
             CardEffectSystem.ExecuteSpritz(state, [pos], spritz));
     }
@@ -141,7 +141,7 @@ public class CardEffectTests
     public void Spritz_ThrowsOnWrongTargetCount()
     {
         var state = CreateLevel1Game();
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
 
         Assert.Throws<ArgumentException>(() =>
             CardEffectSystem.ExecuteSpritz(state, null, spritz));
@@ -157,7 +157,7 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var rng = new Random(99);
 
-        var card = state.Hand.First(c => c.EffectType == CardEffectType.Instructions);
+        var card = state.Hand.First(c => c.EffectType == CardEffectType.Recall);
         var newState = CardEffectSystem.ExecuteInstructions(state, rng, card);
 
         // At least some tiles should have clue results
@@ -171,7 +171,7 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var rng = new Random(99);
 
-        var card = state.Hand.First(c => c.EffectType == CardEffectType.Instructions);
+        var card = state.Hand.First(c => c.EffectType == CardEffectType.Recall);
         var newState = CardEffectSystem.ExecuteInstructions(state, rng, card);
 
         var tilesWithClues = newState.Board.Tiles.Count(t => t.Annotations.ClueResults.Count > 0);
@@ -277,7 +277,7 @@ public class CardEffectTests
         Assert.NotNull(annotation);
         Assert.Contains(TileOwner.Neutral, annotation);
         Assert.Contains(TileOwner.Rival, annotation);
-        Assert.Contains(TileOwner.Mine, annotation);
+        Assert.Contains(TileOwner.Noble, annotation);
         Assert.DoesNotContain(TileOwner.Player, annotation);
     }
 
@@ -311,7 +311,7 @@ public class CardEffectTests
         Assert.NotEmpty(annotated);
         var tile = annotated.First();
         Assert.True(
-            tile.Owner == TileOwner.Rival || tile.Owner == TileOwner.Mine,
+            tile.Owner == TileOwner.Rival || tile.Owner == TileOwner.Noble,
             "Tingle should only target rival or mine tiles");
         Assert.Contains(tile.Owner, tile.Annotations.OwnerSubset!);
     }
@@ -322,33 +322,21 @@ public class CardEffectTests
         var state = CreateTestGame();
         var rng = new Random(42);
 
-        // Mark one rival tile as already known
+        // Mark all but one rival tile as already known
         var firstRival = FindFirstUnrevealed(state, TileOwner.Rival);
-        state = AnnotationSystem.AddOwnerSubset(state, firstRival, new HashSet<TileOwner> { TileOwner.Rival });
-
-        var card = state.Hand.First(c => c.EffectType == CardEffectType.Tingle);
-
-        // Run many times to check preference
-        var hitAlreadyKnown = 0;
-        for (var i = 0; i < 50; i++)
+        foreach (var tile in state.Board.Tiles)
         {
-            var newState = CardEffectSystem.ExecuteTingle(state, new Random(i), card);
-
-            // Check if the already-known tile was changed (it shouldn't be targeted when ambiguous tiles exist)
-            var newAnnotated = newState.Board.Tiles
-                .Where(t => t.Annotations.OwnerSubset?.Count == 1 && t.Position != firstRival)
-                .ToList();
-
-            // If there are other candidates with single-owner now, Tingle targeted a new tile
-            if (newAnnotated.Any())
+            if (tile.Position == firstRival)
+            {
                 continue;
-
-            hitAlreadyKnown++;
+            }
+            state = AnnotationSystem.AddOwnerSubset(state, tile.Position, new HashSet<TileOwner> { tile.Owner });
         }
 
-        // Should rarely hit the already-known tile when ambiguous alternatives exist
-        Assert.True(hitAlreadyKnown < 25,
-            $"Tingle hit already-known tile {hitAlreadyKnown}/50 times, should prefer ambiguous");
+        var card = state.Hand.First(c => c.EffectType == CardEffectType.Tingle);
+        var newState = CardEffectSystem.ExecuteTingle(state, new Random(), card);
+
+        Assert.Equal(newState.Board.GetTile(firstRival).Annotations.OwnerSubset, new HashSet<TileOwner> { TileOwner.Rival });
     }
 
     [Fact]
@@ -358,7 +346,7 @@ public class CardEffectTests
         var config = new LevelConfig
         {
             Width = 2, Height = 2,
-            PlayerCount = 2, RivalCount = 0, NeutralCount = 2, MineCount = 0
+            PlayerCount = 2, RivalCount = 0, NeutralCount = 2, NobleCount = 0
         };
         var board = BoardSystem.CreateBoard(config, new Random(42));
         var state = new GameState
@@ -405,7 +393,7 @@ public class CardEffectTests
     public void PlayCard_DeductsEnergyAndDiscardsCard()
     {
         var state = CreateLevel1Game();
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var playerPos = FindFirstUnrevealed(state, TileOwner.Player);
 
         var newState = CardEffectSystem.PlayCard(state, spritz, [playerPos], new Random(42));
@@ -432,7 +420,7 @@ public class CardEffectTests
     public void PlayCard_ThrowsWhenInsufficientEnergy()
     {
         var state = CreateLevel1Game() with { Energy = 0 };
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var playerPos = FindFirstUnrevealed(state, TileOwner.Player);
 
         Assert.Throws<InvalidOperationException>(() =>

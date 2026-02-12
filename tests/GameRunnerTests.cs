@@ -101,13 +101,13 @@ public class GameRunnerTests
     }
 
     [Fact]
-    public void ProcessReveal_LossOnMine()
+    public void ProcessReveal_LossOnNoble()
     {
-        // Create game with mines
+        // Create game with nobles
         var config = new LevelConfig
         {
             Width = 3, Height = 3,
-            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, MineCount = 1
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
         };
         var rng = new Random(42);
         var board = BoardSystem.CreateBoard(config, rng);
@@ -124,8 +124,8 @@ public class GameRunnerTests
             GameStatus = GameStatus.Playing
         };
 
-        var minePos = state.Board.Tiles.First(t => t.Owner == TileOwner.Mine).Position;
-        var result = GameRunner.ProcessReveal(state, minePos, new Random(99));
+        var noblePos = state.Board.Tiles.First(t => t.Owner == TileOwner.Noble).Position;
+        var result = GameRunner.ProcessReveal(state, noblePos, new Random(99));
 
         Assert.Equal(GameStatus.Lost, result.State.GameStatus);
         Assert.True(result.GameOver);
@@ -137,7 +137,7 @@ public class GameRunnerTests
         var rng = new Random(42);
         var state = GameRunner.CreateGame(LevelConfigs.Level1, rng);
 
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var playerPos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Player).Position;
 
         var result = GameRunner.ProcessCardPlay(state, spritz, [playerPos], new Random(99));
@@ -152,7 +152,7 @@ public class GameRunnerTests
         var rng = new Random(42);
         var state = GameRunner.CreateGame(LevelConfigs.Level1, rng);
 
-        var instructions = state.Hand.FirstOrDefault(c => c.EffectType == CardEffectType.Instructions);
+        var instructions = state.Hand.FirstOrDefault(c => c.EffectType == CardEffectType.Recall);
         if (instructions == null)
         {
             // Might not be in hand; skip
@@ -200,7 +200,7 @@ public class GameRunnerTests
         var state = GameRunner.CreateGame(LevelConfigs.Level1, rng);
 
         // Turn 1: play a spritz, reveal a player tile, end turn
-        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Scout);
+        var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var playerPos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Player).Position;
 
         var result = GameRunner.ProcessCardPlay(state, spritz, [playerPos], new Random(100));

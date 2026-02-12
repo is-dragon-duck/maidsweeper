@@ -57,7 +57,7 @@ public static class ClueSystem
         // 2. Pick 6 random other tiles as spoilers
         var remaining = unrevealed
             .Where(t => !targetPositions.Contains(t.Position))
-            .Where(t => !enhanced || t.Owner != TileOwner.Mine) // Enhanced: exclude mines
+            .Where(t => !enhanced || t.Owner != TileOwner.Noble) // Enhanced: exclude mines
             .ToList();
         var spoilers = SelectRandom(remaining, 6, rng);
 
@@ -75,7 +75,7 @@ public static class ClueSystem
         foreach (var spoiler in spoilers)
         {
             var copies = 4;
-            if (spoiler.Owner == TileOwner.Mine) copies--; // Mines: -1
+            if (spoiler.Owner == TileOwner.Noble) copies--; // Mines: -1
             if (spoiler.Owner == TileOwner.Player) copies--; // Player spoilers: -1
             copies = Math.Max(0, copies);
 
