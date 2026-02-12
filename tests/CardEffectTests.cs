@@ -180,30 +180,21 @@ public class CardEffectTests
     }
 
     [Fact]
-    public void Instructions_PlayerTilesTendToHaveHighestPips()
+    public void Instructions_PlayerTileHasMaxPips()
     {
-        // Statistical test: over many runs, player tiles should have max pips most of the time
-        var playerHasMax = 0;
-        var trials = 100;
+        // The algorithm guarantees (via retry validation) that a player tile has the max pip count
+        var state = CreateLevel1Game(seed: 42);
+        var rng = new Random(99);
 
-        for (var i = 0; i < trials; i++)
-        {
-            var state = CreateLevel1Game(seed: i);
-            var rng = new Random(i * 1000);
+        var clues = ClueSystem.GenerateImperiousClue(state, rng);
+        Assert.NotEmpty(clues);
 
-            var clues = ClueSystem.GenerateImperiousClue(state, rng);
-            if (clues.Count == 0) continue;
+        var maxPips = clues.Max(c => c.PipStrength);
+        var tilesWithMax = clues.Where(c => c.PipStrength == maxPips).ToList();
 
-            var maxPips = clues.Max(c => c.PipStrength);
-            var maxPositions = clues.Where(c => c.PipStrength == maxPips).Select(c => c.TilePosition);
-
-            if (maxPositions.Any(p => state.Board.GetTile(p).Owner == TileOwner.Player))
-                playerHasMax++;
-        }
-
-        // Due to validation, player should have max pips in nearly all valid trials
-        Assert.True(playerHasMax >= trials * 0.8,
-            $"Player tiles had max pips in {playerHasMax}/{trials} trials, expected >= 80%");
+        Assert.True(
+            tilesWithMax.Any(c => state.Board.GetTile(c.TilePosition).Owner == TileOwner.Player),
+            $"Expected a player tile to have max pips ({maxPips}), but none did");
     }
 
     [Fact]

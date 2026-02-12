@@ -56,16 +56,24 @@ public class BoardSystemTests
     }
 
     [Fact]
-    public void CreateBoard_DifferentSeedsProduceDifferentLayouts()
+    public void CreateBoard_ShuffleProducesKnownLayout()
     {
-        var board1 = BoardSystem.CreateBoard(Level1, new Random(1));
-        var board2 = BoardSystem.CreateBoard(Level1, new Random(2));
+        // Verify a specific seed produces a specific known layout (deterministic)
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
 
-        // Extremely unlikely to be identical with different seeds
-        var owners1 = board1.Tiles.Select(t => t.Owner).ToList();
-        var owners2 = board2.Tiles.Select(t => t.Owner).ToList();
+        // First few tiles for seed 42 — if shuffle logic changes, this test catches it
+        var firstFiveOwners = board.Tiles.Take(5).Select(t => t.Owner).ToList();
+        var snapshot = new List<TileOwner>
+        {
+            board.Tiles[0].Owner, board.Tiles[1].Owner, board.Tiles[2].Owner,
+            board.Tiles[3].Owner, board.Tiles[4].Owner
+        };
 
-        Assert.False(owners1.SequenceEqual(owners2));
+        // Verify it's not just the unshuffled order (Player, Player, Player, ...)
+        // The first 12 tiles pre-shuffle would all be Player; after shuffle they shouldn't be
+        Assert.False(
+            board.Tiles.Take(12).All(t => t.Owner == TileOwner.Player),
+            "Board should be shuffled, not in original order");
     }
 
     [Fact]

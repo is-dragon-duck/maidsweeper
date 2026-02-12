@@ -280,14 +280,17 @@ public class DeckSystemTests
     }
 
     [Fact]
-    public void Shuffle_ReturnsDifferentOrderWithDifferentSeeds()
+    public void Shuffle_ActuallyReorders()
     {
         var cards = Enumerable.Range(0, 10).Select(i => MakeCard($"c{i}")).ToList();
+        var original = cards.Select(c => c.Id).ToList();
 
-        var shuffled1 = DeckSystem.Shuffle(cards, new Random(1));
-        var shuffled2 = DeckSystem.Shuffle(cards, new Random(2));
+        var shuffled = DeckSystem.Shuffle(cards, new Random(42));
 
-        Assert.False(shuffled1.Select(c => c.Id).SequenceEqual(shuffled2.Select(c => c.Id)));
+        // Verify it's not in original order (deterministic: seed 42 always shuffles the same way)
+        Assert.False(
+            shuffled.Select(c => c.Id).SequenceEqual(original),
+            "Shuffled deck should not match original order");
     }
 
     [Fact]
