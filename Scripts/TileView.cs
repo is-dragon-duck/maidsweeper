@@ -52,6 +52,7 @@ public partial class TileView : Control
     private bool _isTargetValid;
     private bool _isTargetSelected;
     private TileAnnotations _annotations = new();
+    private List<string> _globalClueOrder = [];
 
     public override void _Draw()
     {
@@ -123,20 +124,13 @@ public partial class TileView : Control
 
     /// <summary>
     /// Top-left: clue pips from Recall cards.
-    /// Each clue cast gets a different color. Pips are small dots arranged in rows.
+    /// Each clue cast gets a different color and a consistent row across all tiles.
+    /// Row is determined by global clue ordering (first Recall played = row 0, etc.).
     /// </summary>
     private void DrawCluePips()
     {
         var clues = _annotations.ClueResults;
         if (clues.Count == 0) return;
-
-        // Group by ClueId to assign colors
-        var clueIds = new List<string>();
-        foreach (var clue in clues)
-        {
-            if (!clueIds.Contains(clue.ClueId))
-                clueIds.Add(clue.ClueId);
-        }
 
         var pipRadius = 3.5f;
         var pipSpacing = 10f;
@@ -145,10 +139,12 @@ public partial class TileView : Control
 
         foreach (var clue in clues)
         {
-            var colorIndex = clueIds.IndexOf(clue.ClueId) % PipColors.Length;
+            var globalRow = _globalClueOrder.IndexOf(clue.ClueId);
+            if (globalRow < 0) globalRow = 0; // fallback
+
+            var colorIndex = globalRow % PipColors.Length;
             var pipColor = PipColors[colorIndex];
-            var row = clueIds.IndexOf(clue.ClueId);
-            var y = startY + row * rowHeight;
+            var y = startY + globalRow * rowHeight;
 
             // Draw pips left-to-right from left edge
             var startX = 5f + pipRadius;
@@ -196,13 +192,14 @@ public partial class TileView : Control
             DrawRect(new Rect2(originX + boxSize + gap, originY + boxSize + gap, boxSize, boxSize), OwnerGridNoble);
     }
 
-    public void UpdateVisual(Tile tile)
+    public void UpdateVisual(Tile tile, List<string> globalClueOrder)
     {
         _isRevealed = tile.IsRevealed;
         _owner = tile.Owner;
         _adjacencyCount = tile.AdjacencyCount;
         _revealedBy = tile.RevealedBy;
         _annotations = tile.Annotations;
+        _globalClueOrder = globalClueOrder;
         QueueRedraw();
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Maidsweeper.Core.Models;
 
@@ -50,10 +51,10 @@ public partial class TileNode : Control
         _position = position;
     }
 
-    public void UpdateFromTile(Tile tile)
+    public void UpdateFromTile(Tile tile, List<string> globalClueOrder)
     {
         _isRevealed = tile.IsRevealed;
-        _view.UpdateVisual(tile);
+        _view.UpdateVisual(tile, globalClueOrder);
     }
 
     public void SetTargetValid(bool valid) => _view.SetTargetValid(valid);

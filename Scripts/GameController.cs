@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Maidsweeper.Core.Models;
@@ -22,6 +23,7 @@ public partial class GameController : MarginContainer
     private GameState _state = null!;
     private Random _rng = null!;
     private readonly TargetingController _targeting = new();
+    private readonly List<string> _globalClueOrder = new();
 
     // Game-over overlay (created programmatically)
     private ColorRect _overlayDim = null!;
@@ -124,6 +126,7 @@ public partial class GameController : MarginContainer
         _rng = new Random();
         _state = GameRunner.CreateGame(LevelConfigs.Level1, _rng);
 
+        _globalClueOrder.Clear();
         _boardNode.BuildBoard(_state.Board);
         _overlayDim.Visible = false;
         RefreshUI();
@@ -131,7 +134,17 @@ public partial class GameController : MarginContainer
 
     private void RefreshUI()
     {
-        _boardNode.UpdateBoard(_state.Board);
+        // Append any new clue IDs (preserves existing order, only adds new ones)
+        foreach (var tile in _state.Board.Tiles)
+        {
+            foreach (var clue in tile.Annotations.ClueResults)
+            {
+                if (!_globalClueOrder.Contains(clue.ClueId))
+                    _globalClueOrder.Add(clue.ClueId);
+            }
+        }
+
+        _boardNode.UpdateBoard(_state.Board, _globalClueOrder);
         _handDisplay.UpdateHand(_state);
         _hud.UpdateFromState(_state);
         UpdateTargetingUI();

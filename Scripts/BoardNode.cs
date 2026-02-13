@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Maidsweeper.Core.Models;
 
@@ -51,14 +52,14 @@ public partial class BoardNode : Node2D
                 AddChild(tileNode);
                 _tileNodes[row, col] = tileNode;
 
-                // Set initial visual state
+                // Set initial visual state (no clues at game start)
                 var tile = board.GetTile(pos);
-                tileNode.UpdateFromTile(tile);
+                tileNode.UpdateFromTile(tile, []);
             }
         }
     }
 
-    public void UpdateBoard(Board board)
+    public void UpdateBoard(Board board, List<string> globalClueOrder)
     {
         if (_tileNodes == null) return;
 
@@ -67,7 +68,7 @@ public partial class BoardNode : Node2D
             for (var col = 0; col < board.Width; col++)
             {
                 var tile = board.GetTile(new Position(row, col));
-                _tileNodes[row, col].UpdateFromTile(tile);
+                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder);
             }
         }
     }
