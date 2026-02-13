@@ -34,7 +34,19 @@ public class TargetingController
     {
         CardEffectType.Spritz => 1,
         CardEffectType.Scurry => 2,
-        _ => 0 // Recall, Tingle, Twirl are immediate
+        CardEffectType.Brush => 1,
+        CardEffectType.Sweep => 1,
+        _ => 0 // Recall, Tingle, Twirl, Caffeinate, Breathe, LockIn, Rendezvous are immediate
+    };
+
+    /// <summary>
+    /// Returns the area radius for area-effect cards (0 for non-area cards).
+    /// </summary>
+    public static int GetAreaRadius(CardEffectType effectType) => effectType switch
+    {
+        CardEffectType.Brush => 1,  // 3x3
+        CardEffectType.Sweep => 2,  // 5x5
+        _ => 0
     };
 
     /// <summary>

@@ -8,4 +8,7 @@ public record Tile
     public PlayerType? RevealedBy { get; init; }
     public int AdjacencyCount { get; init; }
     public TileAnnotations Annotations { get; init; } = new();
+    public SpecialTileType? SpecialTile { get; init; }
+
+    public bool IsDirty => SpecialTile == SpecialTileType.ExtraDirty;
 }

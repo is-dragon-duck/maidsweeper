@@ -25,7 +25,7 @@ public partial class HandDisplay : HBoxContainer
         {
             var cardUI = new CardUI();
             AddChild(cardUI);
-            var affordable = state.Energy >= card.Cost;
+            var affordable = state.Spoons >= card.Cost;
             cardUI.Setup(card, affordable);
             cardUI.CardClicked += OnCardClicked;
         }

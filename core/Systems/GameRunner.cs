@@ -17,21 +17,24 @@ public static class GameRunner
 {
     /// <summary>
     /// Creates a new game: board from config, shuffled starter deck, draw initial hand.
+    /// Optionally takes a persistent deck (for campaign continuation).
     /// </summary>
-    public static GameState CreateGame(LevelConfig config, Random rng)
+    public static GameState CreateGame(LevelConfig config, Random rng, List<Card>? persistentDeck = null)
     {
         var board = BoardSystem.CreateBoard(config, rng);
-        var deck = CardDefinitions.CreateStarterDeck();
+        var deck = persistentDeck ?? CardDefinitions.CreateStarterDeck();
         deck = DeckSystem.Shuffle(deck, rng);
 
         var state = new GameState
         {
             Board = board,
             DrawPile = deck,
-            Energy = 3,
-            MaxEnergy = 3,
+            Spoons = 3,
+            MaxSpoons = 3,
             CurrentPlayer = PlayerType.Player,
-            TurnNumber = 1
+            TurnNumber = 1,
+            PersistentDeck = persistentDeck ?? CardDefinitions.CreateStarterDeck(),
+            CurrentLevelId = config.LevelId
         };
 
         // Draw initial hand of 5
@@ -56,9 +59,19 @@ public static class GameRunner
         if (tile.IsRevealed)
             throw new InvalidOperationException("Tile is already revealed");
 
-        // Reveal the tile
+        var wasDirty = tile.IsDirty;
+
+        // Reveal the tile (or clean if ExtraDirty)
         var newBoard = BoardSystem.RevealTile(state.Board, pos, PlayerType.Player);
         state = state with { Board = newBoard };
+
+        // If tile was dirty and got cleaned (not revealed), end the turn
+        var cleanedTile = newBoard.GetTile(pos);
+        if (wasDirty && !cleanedTile.IsRevealed)
+        {
+            state = ProcessTurnTransition(state, rng);
+            return new ActionResult { State = state, TurnEnded = true };
+        }
 
         // Check game status
         var status = TurnSystem.CheckGameStatus(state);
@@ -96,7 +109,7 @@ public static class GameRunner
 
         state = CardEffectSystem.PlayCard(state, card, targets, rng);
 
-        // Check game status (Scurry can reveal tiles, potentially hitting a mine)
+        // Check game status (Scurry can reveal tiles, potentially hitting a noble)
         var status = TurnSystem.CheckGameStatus(state);
         state = state with { GameStatus = status };
 

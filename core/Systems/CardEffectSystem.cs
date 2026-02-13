@@ -5,16 +5,16 @@ using Maidsweeper.Core.Models;
 public static class CardEffectSystem
 {
     /// <summary>
-    /// Plays a card: spend energy, execute effect, discard/exhaust card.
+    /// Plays a card: spend spoons, execute effect, discard/exhaust card.
     /// </summary>
     public static GameState PlayCard(GameState state, Card card, Position[]? targets, Random rng)
     {
         if (!DeckSystem.CanPlayCard(state, card))
             throw new InvalidOperationException(
-                $"Not enough energy to play '{card.Name}' (cost {card.Cost}, have {state.Energy})");
+                $"Not enough spoons to play '{card.Name}' (cost {card.Cost}, have {state.Spoons})");
 
-        // Spend energy
-        state = DeckSystem.SpendEnergy(state, card);
+        // Spend spoons
+        state = DeckSystem.SpendSpoons(state, card);
 
         // Remove card from hand
         var hand = state.Hand.ToList();
@@ -29,6 +29,12 @@ public static class CardEffectSystem
             CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
             CardEffectType.Tingle => ExecuteTingle(state, rng, card),
             CardEffectType.Twirl => ExecuteTwirl(state, card),
+            CardEffectType.Brush => ExecuteBrush(state, targets, rng),
+            CardEffectType.Sweep => ExecuteSweep(state, targets),
+            CardEffectType.Caffeinate => ExecuteCaffeinate(state),
+            CardEffectType.Breathe => ExecuteBreathe(state, rng),
+            CardEffectType.LockIn => ExecuteLockIn(state, rng),
+            CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
         };
 
@@ -62,6 +68,15 @@ public static class CardEffectSystem
 
         if (tile.IsRevealed)
             throw new ArgumentException("Cannot Spritz a revealed tile");
+
+        // Spritz also cleans ExtraDirty
+        if (tile.IsDirty)
+        {
+            var cleanedTile = tile with { SpecialTile = null };
+            var newTiles = state.Board.Tiles.ToList();
+            newTiles[state.Board.TileIndex(pos)] = cleanedTile;
+            state = state with { Board = state.Board with { Tiles = newTiles } };
+        }
 
         var isSafe = tile.Owner == TileOwner.Player || tile.Owner == TileOwner.Neutral;
         var subset = isSafe
@@ -114,10 +129,25 @@ public static class CardEffectSystem
         var safest = sorted[0];
         var other = sorted[1];
 
-        // Reveal the safer tile (player reveals)
-        state = BoardSystem.RevealTile(state.Board, safest.pos, PlayerType.Player) is var newBoard
-            ? state with { Board = newBoard }
-            : state;
+        // If the safer tile is ExtraDirty, clean it and annotate with true owner instead of revealing
+        var safestTile = state.Board.GetTile(safest.pos);
+        if (safestTile.IsDirty)
+        {
+            var cleanedTile = safestTile with { SpecialTile = null };
+            var newTiles = state.Board.Tiles.ToList();
+            newTiles[state.Board.TileIndex(safest.pos)] = cleanedTile;
+            state = state with { Board = state.Board with { Tiles = newTiles } };
+
+            // Annotate the cleaned tile with its true owner
+            state = AnnotationSystem.AddOwnerSubset(state, safest.pos, new HashSet<TileOwner> { safestTile.Owner });
+        }
+        else
+        {
+            // Normal reveal of the safer tile
+            state = BoardSystem.RevealTile(state.Board, safest.pos, PlayerType.Player) is var newBoard
+                ? state with { Board = newBoard }
+                : state;
+        }
 
         // Annotate the other tile: types at-most-as-safe as what was revealed
         var revealedSafety = GetSafety(safest.tile.Owner);
@@ -141,7 +171,7 @@ public static class CardEffectSystem
     public static GameState ExecuteTingle(GameState state, Random rng, Card card)
     {
         var candidates = state.Board.Tiles
-            .Where(t => !t.IsRevealed && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Noble))
+            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Noble))
             .ToList();
 
         if (candidates.Count == 0)
@@ -169,7 +199,146 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Safety ranking for Scurry: Player(4) > Neutral(3) > Rival(2) > Mine(1).
+    /// Brush: Target 1 tile (center of 3x3). For each unrevealed tile in area,
+    /// pick a random non-owner and annotate to exclude it.
+    /// </summary>
+    public static GameState ExecuteBrush(GameState state, Position[]? targets, Random rng)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Brush requires exactly 1 target tile");
+
+        var center = targets[0];
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
+        var allOwners = new[] { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
+
+        foreach (var tile in tilesInArea)
+        {
+            if (tile.IsRevealed) continue;
+
+            // Pick a random owner that ISN'T the tile's actual owner
+            var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
+            if (nonOwners.Count == 0) continue;
+
+            var excludedOwner = nonOwners[rng.Next(nonOwners.Count)];
+
+            // Annotate: all owners EXCEPT the excluded one
+            var subset = new HashSet<TileOwner>(allOwners.Where(o => o != excludedOwner));
+            state = AnnotationSystem.AddOwnerSubset(state, tile.Position, subset);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Sweep: Target 1 tile (center of 5x5). Remove ExtraDirty from all tiles in area.
+    /// </summary>
+    public static GameState ExecuteSweep(GameState state, Position[]? targets)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Sweep requires exactly 1 target tile");
+
+        var center = targets[0];
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 2);
+        var newTiles = state.Board.Tiles.ToList();
+        var changed = false;
+
+        foreach (var tile in tilesInArea)
+        {
+            if (tile.IsDirty)
+            {
+                var idx = state.Board.TileIndex(tile.Position);
+                newTiles[idx] = tile with { SpecialTile = null };
+                changed = true;
+            }
+        }
+
+        if (!changed) return state;
+
+        return state with { Board = state.Board with { Tiles = newTiles } };
+    }
+
+    /// <summary>
+    /// Caffeinate: Gain 2 spoons.
+    /// </summary>
+    public static GameState ExecuteCaffeinate(GameState state)
+    {
+        return state with { Spoons = state.Spoons + 2 };
+    }
+
+    /// <summary>
+    /// Breathe: Draw 3 cards.
+    /// </summary>
+    public static GameState ExecuteBreathe(GameState state, Random rng)
+    {
+        return DeckSystem.DrawCards(state, 3, rng);
+    }
+
+    /// <summary>
+    /// Lock In: Draw 2 cards.
+    /// </summary>
+    public static GameState ExecuteLockIn(GameState state, Random rng)
+    {
+        return DeckSystem.DrawCards(state, 2, rng);
+    }
+
+    /// <summary>
+    /// Rendezvous: Reveal a random unrevealed player tile with rival adjacency,
+    /// and a random unrevealed rival tile with player adjacency.
+    /// </summary>
+    public static GameState ExecuteRendezvous(GameState state, Random rng)
+    {
+        var board = state.Board;
+
+        // Find unrevealed player tiles
+        var playerTiles = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player)
+            .ToList();
+
+        // Find unrevealed rival tiles
+        var rivalTiles = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival)
+            .ToList();
+
+        // Reveal a random player tile with RIVAL adjacency
+        if (playerTiles.Count > 0)
+        {
+            var target = playerTiles[rng.Next(playerTiles.Count)];
+            var rivalAdj = BoardSystem.CalculateAdjacency(board, target.Position, PlayerType.Rival);
+            var newTiles = board.Tiles.ToList();
+            newTiles[board.TileIndex(target.Position)] = target with
+            {
+                IsRevealed = true,
+                RevealedBy = PlayerType.Player,
+                AdjacencyCount = rivalAdj
+            };
+            board = board with { Tiles = newTiles };
+        }
+
+        // Reveal a random rival tile with PLAYER adjacency
+        // Re-query because the board changed
+        rivalTiles = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival)
+            .ToList();
+
+        if (rivalTiles.Count > 0)
+        {
+            var target = rivalTiles[rng.Next(rivalTiles.Count)];
+            var playerAdj = BoardSystem.CalculateAdjacency(board, target.Position, PlayerType.Player);
+            var newTiles = board.Tiles.ToList();
+            newTiles[board.TileIndex(target.Position)] = target with
+            {
+                IsRevealed = true,
+                RevealedBy = PlayerType.Player,
+                AdjacencyCount = playerAdj
+            };
+            board = board with { Tiles = newTiles };
+        }
+
+        return state with { Board = board };
+    }
+
+    /// <summary>
+    /// Safety ranking for Scurry: Player(4) > Neutral(3) > Rival(2) > Noble(1).
     /// </summary>
     private static int GetSafety(TileOwner owner) => owner switch
     {

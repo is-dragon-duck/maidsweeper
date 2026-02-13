@@ -22,7 +22,7 @@ public static class ClueSystem
         // Get eligible unrevealed tiles (exclude tiles adjacent to 0-adjacency revealed player tiles)
         var excludedPositions = GetExcludedPositionsByAdjacency(board, TileOwner.Player);
         var unrevealed = board.Tiles
-            .Where(t => !t.IsRevealed && !excludedPositions.Contains(t.Position))
+            .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && !excludedPositions.Contains(t.Position))
             .ToList();
         var playerTiles = unrevealed.Where(t => t.Owner == TileOwner.Player).ToList();
 
@@ -156,7 +156,7 @@ public static class ClueSystem
 
         foreach (var tile in board.Tiles)
         {
-            if (!tile.IsRevealed || tile.AdjacencyCount != 0 || tile.RevealedBy != revealedByType)
+            if (!board.IsUsablePosition(tile.Position) || !tile.IsRevealed || tile.AdjacencyCount != 0 || tile.RevealedBy != revealedByType)
                 continue;
 
             // All neighbors of a 0-adjacency tile cannot be the target owner type

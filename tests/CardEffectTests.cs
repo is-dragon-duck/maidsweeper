@@ -25,8 +25,8 @@ public class CardEffectTests
             Board = board,
             Hand = deck.Take(5).ToList(),
             DrawPile = deck.Skip(5).ToList(),
-            Energy = 3,
-            MaxEnergy = 3
+            Spoons = 3,
+            MaxSpoons = 3
         };
     }
 
@@ -45,8 +45,8 @@ public class CardEffectTests
             Board = board,
             Hand = deck.Take(5).ToList(),
             DrawPile = deck.Skip(5).ToList(),
-            Energy = 3,
-            MaxEnergy = 3
+            Spoons = 3,
+            MaxSpoons = 3
         };
     }
 
@@ -121,6 +121,26 @@ public class CardEffectTests
         Assert.NotNull(annotation);
         Assert.Single(annotation);
         Assert.Contains(TileOwner.Rival, annotation);
+    }
+
+    [Fact]
+    public void Spritz_RemovesExtraDirty()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.Spritz with { Id = "s1" }],
+            Spoons = 3,
+            MaxSpoons = 3
+        };
+
+        var newState = CardEffectSystem.ExecuteSpritz(state, [dirtyTile.Position], state.Hand[0]);
+
+        var tile = newState.Board.GetTile(dirtyTile.Position);
+        Assert.False(tile.IsDirty, "Spritz should remove ExtraDirty");
+        Assert.NotNull(tile.Annotations.OwnerSubset); // Also annotated
     }
 
     [Fact]
@@ -273,6 +293,42 @@ public class CardEffectTests
     }
 
     [Fact]
+    public void Scurry_ExtraDirty_CleansInsteadOfRevealing()
+    {
+        // Create board with a dirty player tile
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+        // Find a rival tile to pair with
+        var rivalPos = board.Tiles.First(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival).Position;
+
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.Scurry with { Id = "sc1" }],
+            Spoons = 3,
+            MaxSpoons = 3
+        };
+
+        // Determine which tile is safer so we know which will be "revealed"
+        var dirtySafety = dirtyTile.Owner == TileOwner.Player ? 4 : dirtyTile.Owner == TileOwner.Neutral ? 3 : 2;
+        var rivalSafety = 2; // Rival is safety 2
+
+        var rng = new Random(42);
+        var newState = CardEffectSystem.ExecuteScurry(state, [dirtyTile.Position, rivalPos], rng, state.Hand[0]);
+
+        if (dirtySafety >= rivalSafety)
+        {
+            // Dirty tile is safer (or equal) — should be cleaned, not revealed
+            var tile = newState.Board.GetTile(dirtyTile.Position);
+            Assert.False(tile.IsDirty, "Scurry should clean ExtraDirty from safer tile");
+            Assert.False(tile.IsRevealed, "Scurry should NOT reveal an ExtraDirty tile");
+            Assert.NotNull(tile.Annotations.OwnerSubset);
+            Assert.Contains(dirtyTile.Owner, tile.Annotations.OwnerSubset);
+            Assert.Single(tile.Annotations.OwnerSubset); // Exact owner annotation
+        }
+    }
+
+    [Fact]
     public void Scurry_ThrowsOnWrongTargetCount()
     {
         var state = CreateLevel1Game();
@@ -344,7 +400,7 @@ public class CardEffectTests
         {
             Board = board,
             Hand = [CardDefinitions.Tingle with { Id = "t1" }],
-            Energy = 3
+            Spoons = 3
         };
 
         var rng = new Random(42);
@@ -381,7 +437,7 @@ public class CardEffectTests
     // --- PlayCard Integration Tests ---
 
     [Fact]
-    public void PlayCard_DeductsEnergyAndDiscardsCard()
+    public void PlayCard_DeductsSpoonsAndDiscardsCard()
     {
         var state = CreateLevel1Game();
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
@@ -389,7 +445,7 @@ public class CardEffectTests
 
         var newState = CardEffectSystem.PlayCard(state, spritz, [playerPos], new Random(42));
 
-        Assert.Equal(2, newState.Energy); // 3 - 1 cost
+        Assert.Equal(2, newState.Spoons); // 3 - 1 cost
         Assert.DoesNotContain(spritz, newState.Hand);
         Assert.Contains(spritz, newState.DiscardPile);
     }
@@ -397,7 +453,7 @@ public class CardEffectTests
     [Fact]
     public void PlayCard_ExhaustCardGoesToExhaustPile()
     {
-        var state = CreateLevel1Game() with { Energy = 3 };
+        var state = CreateLevel1Game() with { Spoons = 3 };
         var twirl = CardDefinitions.Twirl with { Id = "tw_test" };
         state = state with { Hand = state.Hand.ToList().Append(twirl).ToList() };
 
@@ -408,9 +464,9 @@ public class CardEffectTests
     }
 
     [Fact]
-    public void PlayCard_ThrowsWhenInsufficientEnergy()
+    public void PlayCard_ThrowsWhenInsufficientSpoons()
     {
-        var state = CreateLevel1Game() with { Energy = 0 };
+        var state = CreateLevel1Game() with { Spoons = 0 };
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         var playerPos = FindFirstUnrevealed(state, TileOwner.Player);
 
@@ -434,7 +490,7 @@ public class CardEffectTests
         {
             Board = board,
             Hand = [CardDefinitions.RecallImperious with { Id = "r1" }],
-            Energy = 3
+            Spoons = 3
         };
 
         var rng = new Random(99);
@@ -467,11 +523,267 @@ public class CardEffectTests
         var state = CreateLevel1Game() with
         {
             Hand = new List<Card> { card },
-            Energy = 1
+            Spoons = 1
         };
 
         var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
 
         Assert.Empty(newState.Hand);
+    }
+
+    // --- Brush Tests ---
+
+    [Fact]
+    public void Brush_AnnotatesTilesIn3x3()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(42);
+
+        var center = new Position(2, 3);
+        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng);
+
+        // All unrevealed tiles in 3x3 should have owner subset annotation
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
+        var annotated = tilesInArea
+            .Where(t => !t.IsRevealed)
+            .Select(t => newState.Board.GetTile(t.Position))
+            .Where(t => t.Annotations.OwnerSubset != null)
+            .ToList();
+
+        Assert.True(annotated.Count > 0, "Brush should annotate tiles");
+    }
+
+    [Fact]
+    public void Brush_ExcludesANonOwner()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(42);
+
+        var center = new Position(2, 3);
+        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng);
+
+        // Each annotated tile should have subset of size 3 (4 owners - 1 excluded)
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
+        foreach (var origTile in tilesInArea)
+        {
+            if (origTile.IsRevealed) continue;
+            var tile = newState.Board.GetTile(origTile.Position);
+            if (tile.Annotations.OwnerSubset != null)
+            {
+                // Subset should contain the tile's real owner
+                Assert.Contains(origTile.Owner, tile.Annotations.OwnerSubset);
+                // Subset should have at most 3 elements (one was excluded)
+                Assert.True(tile.Annotations.OwnerSubset.Count <= 3);
+            }
+        }
+    }
+
+    [Fact]
+    public void Brush_RespectsEdges()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(42);
+
+        // Corner position — should only annotate 4 tiles
+        var corner = new Position(0, 0);
+        var newState = CardEffectSystem.ExecuteBrush(state, [corner], rng);
+
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, corner, 1);
+        Assert.Equal(4, tilesInArea.Count);
+    }
+
+    // --- Sweep Tests ---
+
+    [Fact]
+    public void Sweep_RemovesDirtIn5x5()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.Sweep with { Id = "sw1" }],
+            Spoons = 3,
+            MaxSpoons = 3
+        };
+
+        // Find the dirty tile
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+
+        // Use Sweep centered on dirty tile
+        var newState = CardEffectSystem.ExecuteSweep(state, [dirtyTile.Position]);
+
+        var tile = newState.Board.GetTile(dirtyTile.Position);
+        Assert.False(tile.IsDirty);
+    }
+
+    [Fact]
+    public void Sweep_DoesNotAffectNonDirtyTiles()
+    {
+        var state = CreateLevel1Game();
+        var center = new Position(2, 3);
+
+        // No dirty tiles on Level 1 — Sweep should return same state
+        var newState = CardEffectSystem.ExecuteSweep(state, [center]);
+        Assert.Same(state, newState);
+    }
+
+    // --- Caffeinate Tests ---
+
+    [Fact]
+    public void Caffeinate_Gains2Spoons()
+    {
+        var state = CreateLevel1Game();
+        var newState = CardEffectSystem.ExecuteCaffeinate(state);
+
+        Assert.Equal(state.Spoons + 2, newState.Spoons);
+    }
+
+    [Fact]
+    public void PlayCard_CaffeinateExhausts()
+    {
+        var state = CreateLevel1Game();
+        var caffCard = CardDefinitions.Caffeinate with { Id = "caff_test" };
+        state = state with { Hand = state.Hand.ToList().Append(caffCard).ToList() };
+
+        var newState = CardEffectSystem.PlayCard(state, caffCard, null, new Random(42));
+
+        Assert.Contains(caffCard, newState.ExhaustPile);
+        Assert.DoesNotContain(caffCard, newState.DiscardPile);
+    }
+
+    // --- Breathe Tests ---
+
+    [Fact]
+    public void Breathe_Draws3Cards()
+    {
+        var state = CreateLevel1Game();
+        var initialHandCount = state.Hand.Count;
+        // Make sure draw pile has cards by putting extras there
+        var draw = Enumerable.Range(0, 5).Select(i =>
+            CardDefinitions.Spritz with { Id = $"extra_{i}" }).ToList();
+        state = state with { DrawPile = draw };
+
+        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42));
+
+        Assert.Equal(initialHandCount + 3, newState.Hand.Count);
+    }
+
+    [Fact]
+    public void Breathe_HandlesSmallDeck()
+    {
+        var state = CreateLevel1Game() with
+        {
+            DrawPile = new List<Card> { CardDefinitions.Spritz with { Id = "last" } },
+            DiscardPile = new List<Card>()
+        };
+        var initialHand = state.Hand.Count;
+
+        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42));
+
+        // Only 1 card available, should draw 1
+        Assert.Equal(initialHand + 1, newState.Hand.Count);
+    }
+
+    // --- Lock In Tests ---
+
+    [Fact]
+    public void LockIn_Draws2Cards()
+    {
+        var state = CreateLevel1Game();
+        var draw = Enumerable.Range(0, 5).Select(i =>
+            CardDefinitions.Spritz with { Id = $"extra_{i}" }).ToList();
+        state = state with { DrawPile = draw };
+        var initialHandCount = state.Hand.Count;
+
+        var newState = CardEffectSystem.ExecuteLockIn(state, new Random(42));
+
+        Assert.Equal(initialHandCount + 2, newState.Hand.Count);
+    }
+
+    [Fact]
+    public void PlayCard_LockInCosts0AndExhausts()
+    {
+        var state = CreateLevel1Game() with { Spoons = 0 };
+        var lockCard = CardDefinitions.LockIn with { Id = "lock_test" };
+        var draw = Enumerable.Range(0, 5).Select(i =>
+            CardDefinitions.Spritz with { Id = $"draw_{i}" }).ToList();
+        state = state with
+        {
+            Hand = new List<Card> { lockCard },
+            DrawPile = draw
+        };
+
+        var newState = CardEffectSystem.PlayCard(state, lockCard, null, new Random(42));
+
+        Assert.Equal(0, newState.Spoons); // Still 0 — cost 0
+        Assert.Contains(lockCard, newState.ExhaustPile);
+    }
+
+    // --- Rendezvous Tests ---
+
+    [Fact]
+    public void Rendezvous_Reveals1PlayerAnd1RivalTile()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(42);
+
+        var playerBefore = state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
+        var rivalBefore = state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Rival);
+
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+
+        var playerAfter = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
+        var rivalAfter = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Rival);
+
+        Assert.Equal(playerBefore + 1, playerAfter);
+        Assert.Equal(rivalBefore + 1, rivalAfter);
+    }
+
+    [Fact]
+    public void Rendezvous_SwapsAdjacencyPerspective()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(42);
+
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+
+        // The newly revealed player tile should have rival adjacency
+        var revealedPlayer = newState.Board.Tiles
+            .First(t => t.IsRevealed && t.Owner == TileOwner.Player && !state.Board.GetTile(t.Position).IsRevealed);
+        var expectedRivalAdj = BoardSystem.CalculateAdjacency(state.Board, revealedPlayer.Position, PlayerType.Rival);
+        Assert.Equal(expectedRivalAdj, revealedPlayer.AdjacencyCount);
+
+        // The newly revealed rival tile should have player adjacency
+        var revealedRival = newState.Board.Tiles
+            .First(t => t.IsRevealed && t.Owner == TileOwner.Rival && !state.Board.GetTile(t.Position).IsRevealed);
+        // Need to check against updated board (after player tile was revealed)
+        var boardAfterPlayerReveal = newState.Board;
+        var expectedPlayerAdj = BoardSystem.CalculateAdjacency(state.Board, revealedRival.Position, PlayerType.Player);
+        Assert.Equal(expectedPlayerAdj, revealedRival.AdjacencyCount);
+    }
+
+    [Fact]
+    public void Rendezvous_NoTargets_ReturnsUnchanged()
+    {
+        // Board with no rival tiles
+        var config = new LevelConfig
+        {
+            Width = 2, Height = 2,
+            PlayerCount = 2, RivalCount = 0, NeutralCount = 2, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.Rendezvous with { Id = "r1" }],
+            Spoons = 3
+        };
+
+        var rng = new Random(42);
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+
+        // Player tile revealed, but no rival tile available
+        var playerRevealed = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
+        Assert.Equal(1, playerRevealed);
     }
 }

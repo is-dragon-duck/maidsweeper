@@ -6,7 +6,7 @@ Porting "Sweep The Dungeons" (browser-based React/TypeScript/Zustand alpha) to G
 
 ### What We're Porting
 
-**Core Loop**: Grid of tiles (player/rival/neutral/mine/empty). Reveal tiles to find all yours. Use cards for imperfect information. Avoid mines. Turn-based: player acts, then AI rival reveals.
+**Core Loop**: Grid of tiles (player/rival/neutral/noble/empty). Reveal tiles to find all yours. Use cards for imperfect information. Avoid nobles. Turn-based: player acts, then AI rival reveals.
 
 **Full Scope**: ~30+ cards, ~20+ equipment items, 21-level campaign, 3 AI types, clue pip system, player annotations, special tiles (extraDirty/goblin/lair/surfaceMine/sanctum), copper/shops, status effects, card upgrades, animations.
 
@@ -15,7 +15,7 @@ These are the cards every run begins with. They're the foundation of the core pu
 - **1x Imperious Instructions** (cost 2): Distributes clue pips across tiles via bag draw — the primary information-gathering card
 - **2x Scurry** (cost 1): Select 2 unrevealed tiles, auto-reveals the safer one
 - **3x Spritz** (cost 1): Target a tile, learn if it's safe or dangerous (scout)
-- **3x Tingle** (cost 1): Marks a random unrevealed rival/mine tile with its owner type
+- **3x Tingle** (cost 1): Marks a random unrevealed rival/noble tile with its owner type
 - **1x Twirl** (cost 3, exhaust): Gain 3 copper (dead card until shops in Stage 4, by design)
 
 ---
@@ -40,16 +40,16 @@ Launch the game, see a 6x5 grid. Draw 5 cards. Play Spritz on a tile to learn it
 ### Game Logic (C#, no Godot deps)
 - [ ] Core types: `Position`, `Tile` (owner, revealed, revealedBy, adjacencyCount, annotations, specialTiles), `Board`, `Card`, `GameState`
 - [ ] Board system: `CreateBoard` (from tile counts), `GetTile`, `GetNeighbors` (standard 8-neighbor), `CalculateAdjacency`, `RevealTile`
-- [ ] Level 1 config: 6x5, 12 player / 10 rival / 8 neutral / 0 mine
+- [ ] Level 1 config: 6x5, 12 player / 10 rival / 8 neutral / 0 noble
 - [ ] Deck system: draw pile, hand, discard, shuffle-on-empty, draw N cards, discard hand
-- [ ] Energy system: 3 energy per turn, cards cost energy to play
+- [ ] Spoons system: 3 spoons per turn, cards cost spoons to play
 - [ ] Card effect: Spritz (scout) — single-tile targeting, marks safe/dangerous annotation
 - [ ] Card effect: Imperious Instructions — bag-draw pip distribution across tiles (the full clue system with ClueResult tracking)
 - [ ] Card effect: Scurry — two-tile targeting, auto-reveals safer tile
-- [ ] Card effect: Tingle — marks random unrevealed rival/mine tile with its type (instant, animation later)
+- [ ] Card effect: Tingle — marks random unrevealed rival/noble tile with its type (instant, animation later)
 - [ ] Card effect: Twirl — draw 2 cards, exhaust
-- [ ] Turn flow: player turn → discard hand → AI turn (reveal 1 random rival tile) → draw 5, reset energy
-- [ ] Win: all player tiles revealed. Lose: mine revealed (not possible on level 1, but wire it up)
+- [ ] Turn flow: player turn → discard hand → AI turn (reveal 1 random rival tile) → draw 5, reset spoons
+- [ ] Win: all player tiles revealed. Lose: noble revealed (not possible on level 1, but wire it up)
 - [ ] Game status tracking (playing / won / lost)
 - [ ] Unit tests for board, adjacency, card effects, deck cycling, win/lose detection
 
@@ -63,8 +63,8 @@ Launch the game, see a 6x5 grid. Draw 5 cards. Play Spritz on a tile to learn it
 - [ ] Owner type annotation display (from Tingle)
 - [ ] Hand display: show cards with name/cost, click to play
 - [ ] Card targeting UI: highlight that a target is needed, click tile to select
-- [ ] HUD: energy count, deck/discard pile sizes, turn indicator
-- [ ] Tile count display: show unrevealed counts per type (player/rival/neutral/mine)
+- [ ] HUD: spoons count, deck/discard pile sizes, turn indicator
+- [ ] Tile count display: show unrevealed counts per type (player/rival/neutral/noble)
 - [ ] Win/lose display
 
 ### Success Criteria
@@ -78,16 +78,16 @@ Launch the game, see a 6x5 grid. Draw 5 cards. Play Spritz on a tile to learn it
 
 ## Stage 2: Three-Floor Campaign
 **Goal**: Play through 3 floors with increasing difficulty and card rewards between floors. Matches the GDScript port's target scope.
-**Status**: Not Started
+**Status**: Complete (Milestones 11-15 done — renames, level infrastructure, 6 reward cards, campaign system, campaign UI, 135 tests passing)
 
 ### What the player experiences
-Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now with 1 mine and a dirty tile). Beat it, pick another card. Floor 3 is bigger with 3 mines and a center hole. Win all 3 to complete the run.
+Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now with 1 noble and a dirty tile). Beat it, pick another card. Floor 3 is bigger with 3 nobles and a center hole. Win all 3 to complete the run.
 
 ### Game Logic
 - [ ] Level config system: data-driven level definitions (at minimum levels 1-3)
 - [ ] Unused locations (holes in the grid — empty tiles)
 - [ ] ExtraDirty special tile: must be clicked twice to reveal (first click cleans, second reveals)
-- [ ] Mine tile: revealing one loses the game
+- [ ] Noble tile: revealing one loses the game
 - [ ] Persistent deck: cards carry over between floors
 - [ ] Reset per floor: shuffle persistent deck into new draw pile, clear hand/discard/exhaust
 - [ ] Card reward pool: subset of available non-starter cards (port enough for 3 choices per floor)
@@ -96,11 +96,12 @@ Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now wit
 
 ### New Cards (reward pool for early floors)
 - [ ] At least 6-8 reward cards so each floor offers meaningful choices
-- [ ] Brush (cost 1): target unrevealed tile, clean it if dirty, otherwise reveal
-- [ ] Sweep (cost 1): target a revealed tile's unrevealed neighbor, reveal it
-- [ ] Energized (cost 0, exhaust): gain 1 energy
-- [ ] Monster (cost 1, exhaust): add a Monster card to hand (0-cost, draw 1 card when played)
-- [ ] Others as needed to make the reward pool interesting
+- [ ] Brush (cost 1): target 3x3 area, foreach tile pick one of its non-owners at random and annotate it to exclude that non-owner
+- [ ] Sweep (cost 1): target 5x5 area, remove dirt from all tiles in area
+- [ ] Caffeinate (cost 1, exhaust): gain 2 spoons
+- [ ] Breathe (cost 1): draw 3 cards
+- [ ] Lock In (cost 0, exhaust): draw 2 cards
+- [ ] Rendezvous (cost 1): reveal one of your tiles at random, but get *rival* adjacency info on it; then reveal one of your rival's tiles at random, but get *player* adjacency info on it
 
 ### Godot UI
 - [ ] Card selection screen: show 3 cards with names/descriptions, click to pick, option to skip
@@ -112,7 +113,7 @@ Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now wit
 ### Success Criteria
 - Complete 3-floor run is playable and feels like the alpha's early game
 - Card rewards add meaningful choices between floors
-- Dirty tiles and mines add challenge in floors 2-3
+- Dirty tiles and nobles add challenge in floors 2-3
 - Persistent deck grows across floors
 
 ---
@@ -125,14 +126,14 @@ Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now wit
 More card variety in rewards. Upgrade screen offers cost reduction, enhanced effects, or card removal. Player can right-click tiles to cycle through owner-possibility annotations. Annotation views let you track which tiles could be which type.
 
 ### Game Logic
-- [ ] Card upgrades: enhanced (stronger effect), energy-reduced (cost -1, +1 energy on play)
+- [ ] Card upgrades: enhanced (stronger effect), spoon-reduced (+1 spoon on play)
 - [ ] Upgrade options: remove card, cost reduction, enhance effect
 - [ ] Exhaust mechanic: some cards are removed from play for the floor after use
 - [ ] Expand card pool with targeting cards: Argument, Horse, Eavesdropping, Canary, Emanation, Brat, Snip Snip
 - [ ] Expand card pool with immediate cards: Ramble, Underwire, Options
 - [ ] Masking card: play a card from hand for free (both exhaust)
 - [ ] Nap card: retrieve a card from exhaust pile
-- [ ] Player annotation system: per-owner-view possibility tracking (player/rival/neutral/mine views)
+- [ ] Player annotation system: per-owner-view possibility tracking (player/rival/neutral/noble views)
 - [ ] Saturation detection: warn when a tile is ruled out by saturated neighbors
 - [ ] Level configs for floors 4-8 (introduce manhattan-2 adjacency, more special tiles)
 - [ ] Manhattan-2 adjacency rule (tiles within manhattan distance 2)
@@ -144,7 +145,7 @@ More card variety in rewards. Upgrade screen offers cost reduction, enhanced eff
 - [ ] Pile viewing: browse deck/discard/exhaust piles
 - [ ] Enhanced/upgraded card visual indicators
 - [ ] Player annotation rendering: per-owner possibility markers on tiles
-- [ ] Annotation view switching UI (toggle between player/rival/neutral/mine focus)
+- [ ] Annotation view switching UI (toggle between player/rival/neutral/noble focus)
 - [ ] Saturation confirmation dialog
 - [ ] Targeting UI refinements for multi-target and card-selection cards
 
@@ -204,7 +205,7 @@ Full 21-floor campaign with escalating complexity. Goblin tiles that move when y
 - [ ] Goblin mechanics: predetermined movement targets, clean-and-move, collision, lair spawning
 - [ ] Surface mine mechanics: cleaning, explosion, rival placement after turns
 - [ ] Sanctum mechanics: inner tile access gating, portal adjacency for neighbors
-- [ ] NoGuess AI: constraint satisfaction — never reveals a mine
+- [ ] NoGuess AI: constraint satisfaction — never reveals a noble
 - [ ] Conservative AI: weighted tile preference
 - [ ] Reasoning AI: Monte Carlo simulation, hill climbing, exclusion logic (stretch — can defer)
 - [ ] Rival intent point system: base distractions + equipment modifiers
@@ -239,7 +240,7 @@ Full 21-floor campaign with escalating complexity. Goblin tiles that move when y
 - [ ] Rival turn animation (sequential reveals with timing)
 - [ ] Card play/draw/discard animations
 - [ ] Goblin movement and surface mine explosion animations
-- [ ] Sound effects: tile reveal, card play, mine hit, level complete, card draw, goblin move
+- [ ] Sound effects: tile reveal, card play, noble hit, level complete, card draw, goblin move
 - [ ] Thematic rename pass: card/equipment names for evolved maid/court theme
 - [ ] UI polish: consistent visual style, layout, hierarchy
 - [ ] Keyboard shortcuts for common actions (end turn, cancel targeting)

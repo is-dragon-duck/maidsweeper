@@ -106,25 +106,25 @@ public static class DeckSystem
     }
 
     /// <summary>
-    /// Checks if a card can be played given current energy.
+    /// Checks if a card can be played given current spoons.
     /// </summary>
     public static bool CanPlayCard(GameState state, Card card)
     {
-        return state.Energy >= card.Cost;
+        return state.Spoons >= card.Cost;
     }
 
     /// <summary>
-    /// Deducts energy for playing a card. EnergyReduced cards refund 1 energy.
+    /// Deducts spoons for playing a card. SpoonReduced cards refund 1 spoon.
     /// </summary>
-    public static GameState SpendEnergy(GameState state, Card card)
+    public static GameState SpendSpoons(GameState state, Card card)
     {
-        var netCost = card.Cost - (card.EnergyReduced ? 1 : 0);
-        var newEnergy = state.Energy - netCost;
+        var netCost = card.Cost - (card.SpoonReduced ? 1 : 0);
+        var newSpoons = state.Spoons - netCost;
 
-        if (newEnergy < 0)
+        if (newSpoons < 0)
             throw new InvalidOperationException(
-                $"Not enough energy to play '{card.Name}' (cost {card.Cost}, have {state.Energy})");
+                $"Not enough spoons to play '{card.Name}' (cost {card.Cost}, have {state.Spoons})");
 
-        return state with { Energy = newEnergy };
+        return state with { Spoons = newSpoons };
     }
 }

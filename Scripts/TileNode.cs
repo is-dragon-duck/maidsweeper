@@ -9,55 +9,65 @@ namespace Maidsweeper.Scripts;
 /// </summary>
 public partial class TileNode : Control
 {
-    [Signal]
-    public delegate void TileClickedEventHandler(int row, int col);
+	[Signal]
+	public delegate void TileClickedEventHandler(int row, int col);
 
-    [Signal]
-    public delegate void TileRightClickedEventHandler(int row, int col);
+	[Signal]
+	public delegate void TileRightClickedEventHandler(int row, int col);
 
-    private TileView _view = null!;
-    private Position _position;
-    private bool _isRevealed;
+	private TileView _view = null!;
+	private Position _position;
+	private bool _isRevealed;
+	private bool _isUnused;
 
-    public Position TilePosition => _position;
+	public Position TilePosition => _position;
 
-    public override void _Ready()
-    {
-        _view = GetNode<TileView>("TileView");
+	public override void _Ready()
+	{
+		_view = GetNode<TileView>("TileView");
 
-        MouseEntered += () => _view.SetHovered(true);
-        MouseExited += () => _view.SetHovered(false);
-    }
+		MouseEntered += () => _view.SetHovered(true);
+		MouseExited += () => _view.SetHovered(false);
+	}
 
-    public override void _GuiInput(InputEvent @event)
-    {
-        if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
-        {
-            if (mouseEvent.ButtonIndex == MouseButton.Left && !_isRevealed)
-            {
-                EmitSignal(SignalName.TileClicked, _position.Row, _position.Col);
-                AcceptEvent();
-            }
-            else if (mouseEvent.ButtonIndex == MouseButton.Right)
-            {
-                EmitSignal(SignalName.TileRightClicked, _position.Row, _position.Col);
-                AcceptEvent();
-            }
-        }
-    }
+	public override void _GuiInput(InputEvent @event)
+	{
+		if (_isUnused) return;
 
-    public void Setup(Position position)
-    {
-        _position = position;
-    }
+		if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
+		{
+			if (mouseEvent.ButtonIndex == MouseButton.Left && !_isRevealed)
+			{
+				EmitSignal(SignalName.TileClicked, _position.Row, _position.Col);
+				AcceptEvent();
+			}
+			else if (mouseEvent.ButtonIndex == MouseButton.Right)
+			{
+				EmitSignal(SignalName.TileRightClicked, _position.Row, _position.Col);
+				AcceptEvent();
+			}
+		}
+	}
 
-    public void UpdateFromTile(Tile tile, List<string> globalClueOrder)
-    {
-        _isRevealed = tile.IsRevealed;
-        _view.UpdateVisual(tile, globalClueOrder);
-    }
+	public void Setup(Position position)
+	{
+		_position = position;
+	}
 
-    public void SetTargetValid(bool valid) => _view.SetTargetValid(valid);
-    public void SetTargetSelected(bool selected) => _view.SetTargetSelected(selected);
-    public void ClearTargetingState() => _view.ClearTargetingState();
+	public void SetUnused(bool unused)
+	{
+		_isUnused = unused;
+		_view.SetUnused(unused);
+	}
+
+	public void UpdateFromTile(Tile tile, List<string> globalClueOrder)
+	{
+		_isRevealed = tile.IsRevealed;
+		_view.UpdateVisual(tile, globalClueOrder);
+	}
+
+	public void SetTargetValid(bool valid) => _view.SetTargetValid(valid);
+	public void SetTargetSelected(bool selected) => _view.SetTargetSelected(selected);
+	public void SetAreaPreview(bool preview) => _view.SetAreaPreview(preview);
+	public void ClearTargetingState() => _view.ClearTargetingState();
 }

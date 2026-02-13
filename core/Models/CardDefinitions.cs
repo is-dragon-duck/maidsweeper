@@ -27,7 +27,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Tingle",
-        Description = "Sense a random rival or mine tile.",
+        Description = "Sense a random rival or noble tile.",
         Cost = 1,
         EffectType = CardEffectType.Tingle
     };
@@ -49,6 +49,64 @@ public static class CardDefinitions
         Cost = 3,
         Exhaust = true,
         EffectType = CardEffectType.Twirl
+    };
+
+    // --- Reward Cards ---
+
+    public static Card Brush => new()
+    {
+        Id = "",
+        Name = "Brush",
+        Description = "Target a 3x3 area. For each tile, exclude a random non-owner.",
+        Cost = 1,
+        EffectType = CardEffectType.Brush
+    };
+
+    public static Card Sweep => new()
+    {
+        Id = "",
+        Name = "Sweep",
+        Description = "Target a 5x5 area. Remove dirt from all tiles.",
+        Cost = 1,
+        EffectType = CardEffectType.Sweep
+    };
+
+    public static Card Caffeinate => new()
+    {
+        Id = "",
+        Name = "Caffeinate",
+        Description = "Gain 2 spoons.",
+        Cost = 1,
+        Exhaust = true,
+        EffectType = CardEffectType.Caffeinate
+    };
+
+    public static Card Breathe => new()
+    {
+        Id = "",
+        Name = "Breathe",
+        Description = "Draw 3 cards.",
+        Cost = 1,
+        EffectType = CardEffectType.Breathe
+    };
+
+    public static Card LockIn => new()
+    {
+        Id = "",
+        Name = "Lock In",
+        Description = "Draw 2 cards.",
+        Cost = 0,
+        Exhaust = true,
+        EffectType = CardEffectType.LockIn
+    };
+
+    public static Card Rendezvous => new()
+    {
+        Id = "",
+        Name = "Rendezvous",
+        Description = "Reveal a random player tile with rival adjacency and a random rival tile with player adjacency.",
+        Cost = 1,
+        EffectType = CardEffectType.Rendezvous
     };
 
     /// <summary>
@@ -73,5 +131,13 @@ public static class CardDefinitions
             Scurry with { Id = nextId() },
             Twirl with { Id = nextId() },
         ];
+    }
+
+    /// <summary>
+    /// Returns all reward pool card templates (for card selection between floors).
+    /// </summary>
+    public static List<Card> CreateRewardPool()
+    {
+        return [Brush, Sweep, Caffeinate, Breathe, LockIn, Rendezvous];
     }
 }

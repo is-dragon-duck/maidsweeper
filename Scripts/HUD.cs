@@ -4,7 +4,7 @@ using Maidsweeper.Core.Models;
 namespace Maidsweeper.Scripts;
 
 /// <summary>
-/// Displays game status information: energy, deck/discard counts,
+/// Displays game status information: spoons, deck/discard counts,
 /// turn indicator, tile counts, game status. Includes End Turn button.
 /// </summary>
 public partial class HUD : VBoxContainer
@@ -12,12 +12,13 @@ public partial class HUD : VBoxContainer
     [Signal]
     public delegate void EndTurnPressedEventHandler();
 
-    private Label _energyLabel = null!;
+    private Label _spoonsLabel = null!;
     private Label _deckLabel = null!;
     private Label _turnLabel = null!;
     private Label _tileCountsLabel = null!;
     private Label _statusLabel = null!;
     private Label _copperLabel = null!;
+    private Label _floorLabel = null!;
     private Button _endTurnButton = null!;
 
     public override void _Ready()
@@ -37,10 +38,14 @@ public partial class HUD : VBoxContainer
         _statusLabel.AddThemeFontSizeOverride("font_size", 14);
         AddChild(_statusLabel);
 
+        _floorLabel = new Label { Text = "Floor 1/3" };
+        _floorLabel.AddThemeFontSizeOverride("font_size", 14);
+        AddChild(_floorLabel);
+
         AddChild(new HSeparator());
 
-        _energyLabel = new Label { Text = "Energy: 3 / 3" };
-        AddChild(_energyLabel);
+        _spoonsLabel = new Label { Text = "Spoons: 3 / 3" };
+        AddChild(_spoonsLabel);
 
         _copperLabel = new Label { Text = "Copper: 0" };
         AddChild(_copperLabel);
@@ -62,17 +67,26 @@ public partial class HUD : VBoxContainer
 
     public void UpdateFromState(GameState state)
     {
-        _energyLabel.Text = $"Energy: {state.Energy} / {state.MaxEnergy}";
+        _spoonsLabel.Text = $"Spoons: {state.Spoons} / {state.MaxSpoons}";
         _copperLabel.Text = $"Copper: {state.Copper}";
         _deckLabel.Text = $"Deck: {state.DrawPile.Count} | Discard: {state.DiscardPile.Count}";
 
+        var floorNum = state.CurrentLevelId switch
+        {
+            "level1" => 1,
+            "level2" => 2,
+            "level3" => 3,
+            _ => 0
+        };
+        _floorLabel.Text = $"Floor {floorNum}/3";
+
         _turnLabel.Text = state.CurrentPlayer == PlayerType.Player ? "Your Turn" : "Rival Turn";
 
-        // Tile counts (unrevealed only)
+        // Tile counts (unrevealed only, excluding unused positions)
         var unrevealed = new int[4]; // Player, Rival, Neutral, Noble
         foreach (var tile in state.Board.Tiles)
         {
-            if (!tile.IsRevealed)
+            if (state.Board.IsUsablePosition(tile.Position) && !tile.IsRevealed)
             {
                 unrevealed[(int)tile.Owner]++;
             }

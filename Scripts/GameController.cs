@@ -9,8 +9,8 @@ namespace Maidsweeper.Scripts;
 
 /// <summary>
 /// Root controller: creates the game, handles input events, updates UI.
-/// Bridges Godot signals to pure C# GameRunner.
-/// Manages card targeting flow and game-over overlay.
+/// Bridges Godot signals to pure C# GameRunner and CampaignSystem.
+/// Manages card targeting flow, game-over overlay, card reward screen, and victory screen.
 /// </summary>
 public partial class GameController : MarginContainer
 {
@@ -25,12 +25,17 @@ public partial class GameController : MarginContainer
     private readonly TargetingController _targeting = new();
     private readonly List<string> _globalClueOrder = new();
 
-    // Game-over overlay (created programmatically)
+    // Overlay (shared for game-over, card reward, and victory)
     private ColorRect _overlayDim = null!;
     private PanelContainer _overlayPanel = null!;
+    private VBoxContainer _overlayVBox = null!;
     private Label _overlayTitle = null!;
     private Label _overlayDetails = null!;
     private Button _playAgainButton = null!;
+
+    // Card reward UI (built inside overlay)
+    private HBoxContainer _rewardCardsRow = null!;
+    private Button _skipRewardButton = null!;
 
     public override void _Ready()
     {
@@ -46,8 +51,8 @@ public partial class GameController : MarginContainer
         _hud.EndTurnPressed += OnEndTurnPressed;
         _cancelButton.Pressed += OnCancelTargeting;
 
-        CreateGameOverOverlay();
-        StartNewGame();
+        CreateOverlay();
+        StartNewCampaign();
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -64,7 +69,7 @@ public partial class GameController : MarginContainer
         }
     }
 
-    private void CreateGameOverOverlay()
+    private void CreateOverlay()
     {
         // Semi-transparent dim layer
         _overlayDim = new ColorRect
@@ -73,7 +78,7 @@ public partial class GameController : MarginContainer
             Visible = false
         };
         _overlayDim.SetAnchorsPreset(LayoutPreset.FullRect);
-        _overlayDim.MouseFilter = MouseFilterEnum.Stop; // Block clicks through to game
+        _overlayDim.MouseFilter = MouseFilterEnum.Stop;
         AddChild(_overlayDim);
 
         // Center container
@@ -99,18 +104,34 @@ public partial class GameController : MarginContainer
         _overlayPanel.AddThemeStyleboxOverride("panel", panelStyle);
         center.AddChild(_overlayPanel);
 
-        var vbox = new VBoxContainer();
-        vbox.AddThemeConstantOverride("separation", 16);
-        vbox.Alignment = BoxContainer.AlignmentMode.Center;
-        _overlayPanel.AddChild(vbox);
+        _overlayVBox = new VBoxContainer();
+        _overlayVBox.AddThemeConstantOverride("separation", 16);
+        _overlayVBox.Alignment = BoxContainer.AlignmentMode.Center;
+        _overlayPanel.AddChild(_overlayVBox);
 
         _overlayTitle = new Label { HorizontalAlignment = HorizontalAlignment.Center };
         _overlayTitle.AddThemeFontSizeOverride("font_size", 32);
-        vbox.AddChild(_overlayTitle);
+        _overlayVBox.AddChild(_overlayTitle);
 
         _overlayDetails = new Label { HorizontalAlignment = HorizontalAlignment.Center };
         _overlayDetails.AddThemeFontSizeOverride("font_size", 16);
-        vbox.AddChild(_overlayDetails);
+        _overlayVBox.AddChild(_overlayDetails);
+
+        // Card reward row (hidden by default)
+        _rewardCardsRow = new HBoxContainer();
+        _rewardCardsRow.AddThemeConstantOverride("separation", 12);
+        _rewardCardsRow.Alignment = BoxContainer.AlignmentMode.Center;
+        _rewardCardsRow.Visible = false;
+        _overlayVBox.AddChild(_rewardCardsRow);
+
+        _skipRewardButton = new Button
+        {
+            Text = "Skip",
+            CustomMinimumSize = new Vector2(100, 35),
+            Visible = false
+        };
+        _skipRewardButton.Pressed += OnSkipReward;
+        _overlayVBox.AddChild(_skipRewardButton);
 
         _playAgainButton = new Button
         {
@@ -118,14 +139,22 @@ public partial class GameController : MarginContainer
             CustomMinimumSize = new Vector2(150, 40)
         };
         _playAgainButton.Pressed += OnPlayAgain;
-        vbox.AddChild(_playAgainButton);
+        _overlayVBox.AddChild(_playAgainButton);
     }
 
-    private void StartNewGame()
+    private void StartNewCampaign()
     {
         _rng = new Random();
-        _state = GameRunner.CreateGame(LevelConfigs.Level1, _rng);
+        _state = CampaignSystem.StartCampaign(_rng);
 
+        _globalClueOrder.Clear();
+        _boardNode.BuildBoard(_state.Board);
+        _overlayDim.Visible = false;
+        RefreshUI();
+    }
+
+    private void StartNextFloor()
+    {
         _globalClueOrder.Clear();
         _boardNode.BuildBoard(_state.Board);
         _overlayDim.Visible = false;
@@ -172,30 +201,116 @@ public partial class GameController : MarginContainer
         }
     }
 
-    private void ShowGameOverOverlay()
+    private void HandleGameOver()
     {
         if (_targeting.IsTargeting)
             CancelTargeting();
 
-        var won = _state.GameStatus == GameStatus.Won;
+        if (_state.GameStatus == GameStatus.Won)
+        {
+            // Campaign progression
+            _state = CampaignSystem.CompleteFloor(_state, _rng);
 
-        _overlayTitle.Text = won ? "Floor Cleared!" : "Game Over";
-        _overlayTitle.AddThemeColorOverride("font_color",
-            won ? new Color(0.3f, 0.9f, 0.4f) : new Color(0.9f, 0.3f, 0.25f));
+            if (_state.GamePhase == GamePhase.CampaignVictory)
+            {
+                ShowVictoryOverlay();
+            }
+            else if (_state.GamePhase == GamePhase.CardReward)
+            {
+                ShowCardRewardOverlay();
+            }
+        }
+        else
+        {
+            ShowLossOverlay();
+        }
+    }
 
-        var revealedPlayer = _state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
-        var totalPlayer = _state.Board.Tiles.Count(t => t.Owner == TileOwner.Player);
+    private void ShowLossOverlay()
+    {
+        _overlayTitle.Text = "Game Over";
+        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.25f));
 
-        _overlayDetails.Text = won
-            ? $"All {totalPlayer} tiles found in {_state.TurnNumber} turns"
-            : $"Found {revealedPlayer} of {totalPlayer} tiles ({_state.TurnNumber} turns)";
+        var revealedPlayer = _state.Board.Tiles.Count(t =>
+            _state.Board.IsUsablePosition(t.Position) && t.IsRevealed && t.Owner == TileOwner.Player);
+        var totalPlayer = _state.Board.Tiles.Count(t =>
+            _state.Board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Player);
 
+        var floorNum = GetFloorNumber(_state.CurrentLevelId);
+        _overlayDetails.Text = $"Floor {floorNum}: Found {revealedPlayer} of {totalPlayer} tiles ({_state.TurnNumber} turns)";
+
+        _rewardCardsRow.Visible = false;
+        _skipRewardButton.Visible = false;
+        _playAgainButton.Visible = true;
+        _playAgainButton.Text = "Play Again";
         _overlayDim.Visible = true;
+    }
+
+    private void ShowCardRewardOverlay()
+    {
+        var floorNum = GetFloorNumber(_state.CurrentLevelId);
+        _overlayTitle.Text = $"Floor {floorNum} Cleared!";
+        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.4f));
+        _overlayDetails.Text = "Choose a card to add to your deck:";
+
+        // Clear old reward cards
+        foreach (var child in _rewardCardsRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        // Add reward card buttons
+        if (_state.CardRewardOptions != null)
+        {
+            foreach (var card in _state.CardRewardOptions)
+            {
+                var cardUI = new CardUI();
+                _rewardCardsRow.AddChild(cardUI);
+                cardUI.Setup(card, true);
+                cardUI.CardClicked += OnRewardCardClicked;
+            }
+        }
+
+        _rewardCardsRow.Visible = true;
+        _skipRewardButton.Visible = true;
+        _playAgainButton.Visible = false;
+        _overlayDim.Visible = true;
+    }
+
+    private void ShowVictoryOverlay()
+    {
+        _overlayTitle.Text = "Campaign Complete!";
+        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.4f));
+        _overlayDetails.Text = $"Deck size: {_state.PersistentDeck.Count} cards";
+
+        _rewardCardsRow.Visible = false;
+        _skipRewardButton.Visible = false;
+        _playAgainButton.Visible = true;
+        _playAgainButton.Text = "Play Again";
+        _overlayDim.Visible = true;
+    }
+
+    private void OnRewardCardClicked(string cardId)
+    {
+        if (_state.CardRewardOptions == null) return;
+
+        var selected = _state.CardRewardOptions.FirstOrDefault(c => c.Id == cardId);
+        if (selected == null) return;
+
+        _state = CampaignSystem.SelectCardReward(_state, selected, _rng);
+        StartNextFloor();
+    }
+
+    private void OnSkipReward()
+    {
+        _state = CampaignSystem.SkipCardReward(_state, _rng);
+        StartNextFloor();
     }
 
     private void OnTileClicked(int row, int col)
     {
         if (_state.GameStatus != GameStatus.Playing) return;
+        if (_state.GamePhase != GamePhase.Playing) return;
 
         var pos = new Position(row, col);
 
@@ -214,7 +329,7 @@ public partial class GameController : MarginContainer
 
             if (result.GameOver)
             {
-                ShowGameOverOverlay();
+                HandleGameOver();
             }
         }
         catch (InvalidOperationException)
@@ -243,6 +358,7 @@ public partial class GameController : MarginContainer
     private void OnCardClicked(string cardId)
     {
         if (_state.GameStatus != GameStatus.Playing) return;
+        if (_state.GamePhase != GamePhase.Playing) return;
 
         if (_targeting.IsTargeting)
         {
@@ -286,7 +402,7 @@ public partial class GameController : MarginContainer
 
             if (result.GameOver)
             {
-                ShowGameOverOverlay();
+                HandleGameOver();
             }
         }
         catch (Exception e)
@@ -313,7 +429,7 @@ public partial class GameController : MarginContainer
 
             if (result.GameOver)
             {
-                ShowGameOverOverlay();
+                HandleGameOver();
             }
         }
         catch (InvalidOperationException e)
@@ -324,7 +440,7 @@ public partial class GameController : MarginContainer
 
     private void OnPlayAgain()
     {
-        StartNewGame();
+        StartNewCampaign();
     }
 
     private void OnCancelTargeting()
@@ -337,4 +453,12 @@ public partial class GameController : MarginContainer
         _targeting.Cancel();
         UpdateTargetingUI();
     }
+
+    private static int GetFloorNumber(string levelId) => levelId switch
+    {
+        "level1" => 1,
+        "level2" => 2,
+        "level3" => 3,
+        _ => 0
+    };
 }

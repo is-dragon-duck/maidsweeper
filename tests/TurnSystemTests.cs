@@ -18,7 +18,7 @@ public class TurnSystemTests
         var newState = TurnSystem.StartPlayerTurn(state, new Random(99));
 
         Assert.Equal(5, newState.Hand.Count);
-        Assert.Equal(3, newState.Energy);
+        Assert.Equal(3, newState.Spoons);
         Assert.Equal(PlayerType.Player, newState.CurrentPlayer);
     }
 
@@ -36,14 +36,14 @@ public class TurnSystemTests
     }
 
     [Fact]
-    public void StartPlayerTurn_ResetsEnergy()
+    public void StartPlayerTurn_ResetsSpoons()
     {
         var rng = new Random(42);
-        var state = GameRunner.CreateGame(LevelConfigs.Level1, rng) with { Energy = 0 };
+        var state = GameRunner.CreateGame(LevelConfigs.Level1, rng) with { Spoons = 0 };
 
         var newState = TurnSystem.StartPlayerTurn(state, new Random(99));
 
-        Assert.Equal(3, newState.Energy);
+        Assert.Equal(3, newState.Spoons);
     }
 
     [Fact]

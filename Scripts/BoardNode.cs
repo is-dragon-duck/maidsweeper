@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Maidsweeper.Core.Models;
+using Maidsweeper.Core.Systems;
 
 namespace Maidsweeper.Scripts;
 
@@ -52,6 +54,12 @@ public partial class BoardNode : Node2D
                 AddChild(tileNode);
                 _tileNodes[row, col] = tileNode;
 
+                // Mark unused positions (after AddChild so _Ready has fired)
+                if (board.UnusedPositions.Contains(pos))
+                {
+                    tileNode.SetUnused(true);
+                }
+
                 // Set initial visual state (no clues at game start)
                 var tile = board.GetTile(pos);
                 tileNode.UpdateFromTile(tile, []);
@@ -81,8 +89,9 @@ public partial class BoardNode : Node2D
         {
             for (var col = 0; col < board.Width; col++)
             {
-                var tile = board.GetTile(new Position(row, col));
-                _tileNodes[row, col].SetTargetValid(!tile.IsRevealed);
+                var pos = new Position(row, col);
+                var isValidTarget = board.IsUsablePosition(pos) && !board.GetTile(pos).IsRevealed;
+                _tileNodes[row, col].SetTargetValid(isValidTarget);
             }
         }
     }
@@ -93,9 +102,44 @@ public partial class BoardNode : Node2D
         _tileNodes[pos.Row, pos.Col].SetTargetSelected(selected);
     }
 
+    /// <summary>
+    /// Sets area highlight on all usable tiles within the given radius of center.
+    /// Used for Brush (3x3) and Sweep (5x5) preview.
+    /// </summary>
+    public void SetAreaHighlight(Position center, int radius, Board board)
+    {
+        if (_tileNodes == null) return;
+
+        var tilesInArea = BoardSystem.GetTilesInArea(board, center, radius);
+        var areaPositions = tilesInArea.Select(t => t.Position).ToHashSet();
+
+        for (var row = 0; row < board.Height; row++)
+        {
+            for (var col = 0; col < board.Width; col++)
+            {
+                var pos = new Position(row, col);
+                _tileNodes[row, col].SetAreaPreview(areaPositions.Contains(pos));
+            }
+        }
+    }
+
+    public void ClearAreaHighlight()
+    {
+        if (_tileNodes == null) return;
+
+        for (var row = 0; row < _tileNodes.GetLength(0); row++)
+        {
+            for (var col = 0; col < _tileNodes.GetLength(1); col++)
+            {
+                _tileNodes[row, col].SetAreaPreview(false);
+            }
+        }
+    }
+
     public void ClearTargetingHighlights()
     {
         if (_tileNodes == null) return;
+        ClearAreaHighlight();
 
         for (var row = 0; row < _tileNodes.GetLength(0); row++)
         {

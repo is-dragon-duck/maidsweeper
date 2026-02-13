@@ -6,7 +6,7 @@ namespace Maidsweeper.Tests;
 public class DeckSystemTests
 {
     private static GameState CreateTestState(List<Card>? drawPile = null, List<Card>? hand = null,
-        List<Card>? discardPile = null, int energy = 3)
+        List<Card>? discardPile = null, int spoons = 3)
     {
         return new GameState
         {
@@ -14,7 +14,7 @@ public class DeckSystemTests
             DrawPile = drawPile ?? [],
             Hand = hand ?? [],
             DiscardPile = discardPile ?? [],
-            Energy = energy
+            Spoons = spoons
         };
     }
 
@@ -212,27 +212,27 @@ public class DeckSystemTests
     }
 
     [Fact]
-    public void CanPlayCard_TrueWhenEnoughEnergy()
+    public void CanPlayCard_TrueWhenEnoughSpoons()
     {
-        var state = CreateTestState(energy: 3);
+        var state = CreateTestState(spoons: 3);
         var card = MakeCard("c", cost: 2);
 
         Assert.True(DeckSystem.CanPlayCard(state, card));
     }
 
     [Fact]
-    public void CanPlayCard_TrueWhenExactEnergy()
+    public void CanPlayCard_TrueWhenExactSpoons()
     {
-        var state = CreateTestState(energy: 1);
+        var state = CreateTestState(spoons: 1);
         var card = MakeCard("c", cost: 1);
 
         Assert.True(DeckSystem.CanPlayCard(state, card));
     }
 
     [Fact]
-    public void CanPlayCard_FalseWhenNotEnoughEnergy()
+    public void CanPlayCard_FalseWhenNotEnoughSpoons()
     {
-        var state = CreateTestState(energy: 1);
+        var state = CreateTestState(spoons: 1);
         var card = MakeCard("c", cost: 2);
 
         Assert.False(DeckSystem.CanPlayCard(state, card));
@@ -241,42 +241,42 @@ public class DeckSystemTests
     [Fact]
     public void CanPlayCard_ZeroCostAlwaysPlayable()
     {
-        var state = CreateTestState(energy: 0);
+        var state = CreateTestState(spoons: 0);
         var card = MakeCard("c", cost: 0);
 
         Assert.True(DeckSystem.CanPlayCard(state, card));
     }
 
     [Fact]
-    public void SpendEnergy_DeductsCardCost()
+    public void SpendSpoons_DeductsCardCost()
     {
-        var state = CreateTestState(energy: 3);
+        var state = CreateTestState(spoons: 3);
         var card = MakeCard("c", cost: 2);
 
-        var newState = DeckSystem.SpendEnergy(state, card);
+        var newState = DeckSystem.SpendSpoons(state, card);
 
-        Assert.Equal(1, newState.Energy);
+        Assert.Equal(1, newState.Spoons);
     }
 
     [Fact]
-    public void SpendEnergy_EnergyReducedRefunds1()
+    public void SpendSpoons_SpoonReducedRefunds1()
     {
-        var state = CreateTestState(energy: 3);
-        var card = new Card { Id = "er", Name = "Reduced", Cost = 2, EffectType = CardEffectType.Spritz, EnergyReduced = true };
+        var state = CreateTestState(spoons: 3);
+        var card = new Card { Id = "er", Name = "Reduced", Cost = 2, EffectType = CardEffectType.Spritz, SpoonReduced = true };
 
-        var newState = DeckSystem.SpendEnergy(state, card);
+        var newState = DeckSystem.SpendSpoons(state, card);
 
         // Cost 2, refund 1 = net cost 1
-        Assert.Equal(2, newState.Energy);
+        Assert.Equal(2, newState.Spoons);
     }
 
     [Fact]
-    public void SpendEnergy_ThrowsWhenInsufficientEnergy()
+    public void SpendSpoons_ThrowsWhenInsufficientSpoons()
     {
-        var state = CreateTestState(energy: 1);
+        var state = CreateTestState(spoons: 1);
         var card = MakeCard("c", cost: 3);
 
-        Assert.Throws<InvalidOperationException>(() => DeckSystem.SpendEnergy(state, card));
+        Assert.Throws<InvalidOperationException>(() => DeckSystem.SpendSpoons(state, card));
     }
 
     [Fact]

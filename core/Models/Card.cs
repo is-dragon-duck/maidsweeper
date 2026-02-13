@@ -9,5 +9,5 @@ public record Card
     public bool Exhaust { get; init; }
     public required CardEffectType EffectType { get; init; }
     public bool Enhanced { get; init; }
-    public bool EnergyReduced { get; init; }
+    public bool SpoonReduced { get; init; }
 }

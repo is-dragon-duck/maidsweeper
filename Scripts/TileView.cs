@@ -12,6 +12,7 @@ namespace Maidsweeper.Scripts;
 public partial class TileView : Control
 {
     private static readonly Color UnrevealedColor = new(0.3f, 0.3f, 0.3f);
+    private static readonly Color ExtraDirtyColor = new(0.22f, 0.2f, 0.18f);
     private static readonly Color HoverColor = new(0.4f, 0.4f, 0.4f);
     private static readonly Color PlayerColor = new(1.0f, 0.75f, 0.8f);
     private static readonly Color RivalColor = new(0.7f, 0.85f, 1.0f);
@@ -26,6 +27,7 @@ public partial class TileView : Control
     private static readonly Color TargetValidColor = new(0.35f, 0.45f, 0.35f);
     private static readonly Color TargetSelectedColor = new(0.9f, 0.8f, 0.2f);
     private static readonly Color TargetBorderColor = new(0.2f, 0.8f, 0.2f);
+    private static readonly Color AreaPreviewColor = new(0.4f, 0.5f, 0.4f, 0.6f);
 
     // Owner grid colors (used in the 2x2 annotation grid)
     private static readonly Color OwnerGridPlayer = new(1.0f, 0.55f, 0.65f);   // saturated pink
@@ -51,11 +53,17 @@ public partial class TileView : Control
     private bool _isHovered;
     private bool _isTargetValid;
     private bool _isTargetSelected;
+    private bool _isAreaPreview;
+    private bool _isUnused;
+    private bool _isDirty;
     private TileAnnotations _annotations = new();
     private List<string> _globalClueOrder = [];
 
     public override void _Draw()
     {
+        // Unused positions: draw nothing (gap in the grid)
+        if (_isUnused) return;
+
         var rect = new Rect2(Vector2.Zero, Size);
 
         // Background
@@ -68,8 +76,12 @@ public partial class TileView : Control
                 bgColor = TargetValidColor.Lightened(0.15f);
             else if (_isTargetValid)
                 bgColor = TargetValidColor;
+            else if (_isAreaPreview)
+                bgColor = AreaPreviewColor;
             else if (_isHovered)
                 bgColor = HoverColor;
+            else if (_isDirty)
+                bgColor = ExtraDirtyColor;
             else
                 bgColor = UnrevealedColor;
         }
@@ -99,6 +111,10 @@ public partial class TileView : Control
         else
         {
             DrawAnnotations();
+            if (_isDirty)
+            {
+                DrawDirtyIndicator();
+            }
         }
     }
 
@@ -192,6 +208,25 @@ public partial class TileView : Control
             DrawRect(new Rect2(originX + boxSize + gap, originY + boxSize + gap, boxSize, boxSize), OwnerGridNoble);
     }
 
+    /// <summary>
+    /// Draws diagonal hatching lines to indicate ExtraDirty tile.
+    /// </summary>
+    private void DrawDirtyIndicator()
+    {
+        var hatchColor = new Color(0.5f, 0.4f, 0.2f, 0.5f);
+        var spacing = 12f;
+        var maxDim = Size.X + Size.Y;
+
+        for (var offset = spacing; offset < maxDim; offset += spacing)
+        {
+            var x1 = Mathf.Max(0, offset - Size.Y);
+            var y1 = Mathf.Min(offset, Size.Y);
+            var x2 = Mathf.Min(offset, Size.X);
+            var y2 = Mathf.Max(0, offset - Size.X);
+            DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), hatchColor, 1.5f);
+        }
+    }
+
     public void UpdateVisual(Tile tile, List<string> globalClueOrder)
     {
         _isRevealed = tile.IsRevealed;
@@ -199,13 +234,20 @@ public partial class TileView : Control
         _adjacencyCount = tile.AdjacencyCount;
         _revealedBy = tile.RevealedBy;
         _annotations = tile.Annotations;
+        _isDirty = tile.IsDirty;
         _globalClueOrder = globalClueOrder;
+        QueueRedraw();
+    }
+
+    public void SetUnused(bool unused)
+    {
+        _isUnused = unused;
         QueueRedraw();
     }
 
     public void SetHovered(bool hovered)
     {
-        if (_isRevealed) return;
+        if (_isRevealed || _isUnused) return;
         _isHovered = hovered;
         QueueRedraw();
     }
@@ -222,10 +264,17 @@ public partial class TileView : Control
         QueueRedraw();
     }
 
+    public void SetAreaPreview(bool preview)
+    {
+        _isAreaPreview = preview;
+        QueueRedraw();
+    }
+
     public void ClearTargetingState()
     {
         _isTargetValid = false;
         _isTargetSelected = false;
+        _isAreaPreview = false;
         QueueRedraw();
     }
 }

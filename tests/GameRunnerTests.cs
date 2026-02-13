@@ -16,8 +16,8 @@ public class GameRunnerTests
         Assert.Equal(5, state.DrawPile.Count);
         Assert.Empty(state.DiscardPile);
         Assert.Empty(state.ExhaustPile);
-        Assert.Equal(3, state.Energy);
-        Assert.Equal(3, state.MaxEnergy);
+        Assert.Equal(3, state.Spoons);
+        Assert.Equal(3, state.MaxSpoons);
         Assert.Equal(PlayerType.Player, state.CurrentPlayer);
         Assert.Equal(GameStatus.Playing, state.GameStatus);
         Assert.Equal(1, state.TurnNumber);
@@ -118,8 +118,8 @@ public class GameRunnerTests
             Board = board,
             Hand = deck.Take(5).ToList(),
             DrawPile = deck.Skip(5).ToList(),
-            Energy = 3,
-            MaxEnergy = 3,
+            Spoons = 3,
+            MaxSpoons = 3,
             CurrentPlayer = PlayerType.Player,
             GameStatus = GameStatus.Playing
         };
@@ -129,6 +129,36 @@ public class GameRunnerTests
 
         Assert.Equal(GameStatus.Lost, result.State.GameStatus);
         Assert.True(result.GameOver);
+    }
+
+    [Fact]
+    public void ProcessReveal_ExtraDirtyCleanEndsTurn()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+        var deck = CardDefinitions.CreateStarterDeck();
+
+        var state = new GameState
+        {
+            Board = board,
+            Hand = deck.Take(5).ToList(),
+            DrawPile = deck.Skip(5).ToList(),
+            Spoons = 3,
+            MaxSpoons = 3,
+            CurrentPlayer = PlayerType.Player,
+            GameStatus = GameStatus.Playing
+        };
+
+        var result = GameRunner.ProcessReveal(state, dirtyTile.Position, new Random(99));
+
+        // Cleaning ExtraDirty should end the turn
+        Assert.True(result.TurnEnded);
+        // Tile should be cleaned but NOT revealed
+        var tile = result.State.Board.GetTile(dirtyTile.Position);
+        Assert.False(tile.IsDirty);
+        Assert.False(tile.IsRevealed);
+        // Turn should have transitioned
+        Assert.Equal(2, result.State.TurnNumber);
     }
 
     [Fact]
@@ -143,7 +173,7 @@ public class GameRunnerTests
         var result = GameRunner.ProcessCardPlay(state, spritz, [playerPos], new Random(99));
 
         Assert.False(result.TurnEnded);
-        Assert.Equal(2, result.State.Energy); // 3 - 1
+        Assert.Equal(2, result.State.Spoons); // 3 - 1
     }
 
     [Fact]
@@ -176,7 +206,7 @@ public class GameRunnerTests
         Assert.Equal(PlayerType.Player, result.State.CurrentPlayer);
         Assert.Equal(2, result.State.TurnNumber);
         Assert.Equal(5, result.State.Hand.Count);
-        Assert.Equal(3, result.State.Energy);
+        Assert.Equal(3, result.State.Spoons);
     }
 
     [Fact]

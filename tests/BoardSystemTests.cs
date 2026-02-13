@@ -252,4 +252,219 @@ public class BoardSystemTests
         Assert.Equal(expectedPlayer, playerAdj);
         Assert.Equal(expectedRival, rivalAdj);
     }
+
+    // --- Unused Locations Tests ---
+
+    [Fact]
+    public void CreateBoard_WithUnusedLocations_TracksUnusedPositions()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        Assert.Equal(2, board.UnusedPositions.Count);
+        Assert.Contains(new Position(0, 0), board.UnusedPositions);
+        Assert.Contains(new Position(4, 5), board.UnusedPositions);
+    }
+
+    [Fact]
+    public void CreateBoard_WithUnusedLocations_CorrectUsableTileCount()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        var usableTiles = board.Tiles.Where(t => board.IsUsablePosition(t.Position)).ToList();
+        Assert.Equal(28, usableTiles.Count); // 30 - 2 unused
+    }
+
+    [Fact]
+    public void CreateBoard_WithUnusedLocations_CorrectOwnerCounts()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        var usable = board.Tiles.Where(t => board.IsUsablePosition(t.Position)).ToList();
+        Assert.Equal(10, usable.Count(t => t.Owner == TileOwner.Player));
+        Assert.Equal(9, usable.Count(t => t.Owner == TileOwner.Rival));
+        Assert.Equal(8, usable.Count(t => t.Owner == TileOwner.Neutral));
+        Assert.Equal(1, usable.Count(t => t.Owner == TileOwner.Noble));
+    }
+
+    [Fact]
+    public void IsUsablePosition_FalseForUnusedPositions()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        Assert.False(board.IsUsablePosition(new Position(0, 0)));
+        Assert.False(board.IsUsablePosition(new Position(4, 5)));
+        Assert.True(board.IsUsablePosition(new Position(0, 1)));
+    }
+
+    [Fact]
+    public void GetNeighbors_ExcludesUnusedPositions()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        // Position (0,1) is adjacent to unused (0,0)
+        var neighbors = BoardSystem.GetNeighbors(board, new Position(0, 1));
+        Assert.DoesNotContain(new Position(0, 0), neighbors);
+    }
+
+    [Fact]
+    public void CalculateAdjacency_ExcludesUnusedPositions()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        // Adjacency should only count usable neighbors
+        var pos = new Position(1, 0); // near unused (0,0)
+        var adj = BoardSystem.CalculateAdjacency(board, pos, PlayerType.Player);
+        var usableNeighbors = BoardSystem.GetNeighbors(board, pos);
+
+        // Should NOT count the placeholder tile at (0,0)
+        Assert.DoesNotContain(new Position(0, 0), usableNeighbors);
+        var expected = usableNeighbors.Count(n => board.GetTile(n).Owner == TileOwner.Player);
+        Assert.Equal(expected, adj);
+    }
+
+    // --- ExtraDirty Tests ---
+
+    [Fact]
+    public void CreateBoard_WithExtraDirty_PlacesCorrectCount()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        var dirtyTiles = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && t.IsDirty)
+            .ToList();
+
+        Assert.Single(dirtyTiles);
+    }
+
+    [Fact]
+    public void CreateBoard_WithExtraDirty_OnlyEligibleOwners()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+
+        var dirtyTiles = board.Tiles.Where(t => t.IsDirty).ToList();
+        Assert.All(dirtyTiles, t =>
+            Assert.True(t.Owner == TileOwner.Player || t.Owner == TileOwner.Neutral));
+    }
+
+    [Fact]
+    public void RevealTile_ExtraDirty_PlayerClickCleans()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+
+        var newBoard = BoardSystem.RevealTile(board, dirtyTile.Position, PlayerType.Player);
+
+        var tile = newBoard.GetTile(dirtyTile.Position);
+        Assert.False(tile.IsDirty); // Dirt removed
+        Assert.False(tile.IsRevealed); // Not revealed yet
+    }
+
+    [Fact]
+    public void RevealTile_ExtraDirty_SecondClickReveals()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+
+        // First click: clean
+        var cleaned = BoardSystem.RevealTile(board, dirtyTile.Position, PlayerType.Player);
+        Assert.False(cleaned.GetTile(dirtyTile.Position).IsRevealed);
+
+        // Second click: reveal
+        var revealed = BoardSystem.RevealTile(cleaned, dirtyTile.Position, PlayerType.Player);
+        Assert.True(revealed.GetTile(dirtyTile.Position).IsRevealed);
+    }
+
+    [Fact]
+    public void RevealTile_ExtraDirty_RivalRevealsNormally()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        var dirtyTile = board.Tiles.First(t => t.IsDirty);
+
+        var newBoard = BoardSystem.RevealTile(board, dirtyTile.Position, PlayerType.Rival);
+
+        var tile = newBoard.GetTile(dirtyTile.Position);
+        Assert.True(tile.IsRevealed); // Rival ignores ExtraDirty
+    }
+
+    // --- Level Config Validation ---
+
+    [Fact]
+    public void Level2Config_ValidatesCorrectly()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level2, new Random(42));
+        Assert.Equal(30, board.Tiles.Count);
+        Assert.Equal(2, board.UnusedPositions.Count);
+    }
+
+    [Fact]
+    public void Level3Config_ValidatesCorrectly()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level3, new Random(42));
+        Assert.Equal(36, board.Tiles.Count); // 6x6
+        Assert.Equal(4, board.UnusedPositions.Count);
+
+        var usable = board.Tiles.Where(t => board.IsUsablePosition(t.Position)).ToList();
+        Assert.Equal(32, usable.Count);
+        Assert.Equal(3, usable.Count(t => t.Owner == TileOwner.Noble));
+    }
+
+    [Fact]
+    public void Level3Config_ExtraDirtyCount()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level3, new Random(42));
+
+        var dirtyTiles = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && t.IsDirty)
+            .ToList();
+
+        Assert.Equal(3, dirtyTiles.Count);
+    }
+
+    // --- GetTilesInArea Tests ---
+
+    [Fact]
+    public void GetTilesInArea_ReturnsCorrectCountAtCenter()
+    {
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
+
+        // 3x3 area at center of 6x5 board
+        var tiles = BoardSystem.GetTilesInArea(board, new Position(2, 3), 1);
+        Assert.Equal(9, tiles.Count); // Full 3x3
+    }
+
+    [Fact]
+    public void GetTilesInArea_ClipsAtEdges()
+    {
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
+
+        // 3x3 area at corner (0,0) — only 4 valid positions
+        var tiles = BoardSystem.GetTilesInArea(board, new Position(0, 0), 1);
+        Assert.Equal(4, tiles.Count);
+    }
+
+    [Fact]
+    public void GetTilesInArea_ExcludesUnusedPositions()
+    {
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level3, new Random(42));
+
+        // Center of Level 3 has unused positions at (2,2), (2,3), (3,2), (3,3)
+        // 5x5 area centered at (2,2) would include the hole
+        var tiles = BoardSystem.GetTilesInArea(board, new Position(2, 2), 2);
+        var positions = tiles.Select(t => t.Position).ToHashSet();
+
+        Assert.DoesNotContain(new Position(2, 2), positions);
+        Assert.DoesNotContain(new Position(2, 3), positions);
+        Assert.DoesNotContain(new Position(3, 2), positions);
+        Assert.DoesNotContain(new Position(3, 3), positions);
+    }
+
+    [Fact]
+    public void GetTilesInArea_Radius2Returns5x5()
+    {
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
+
+        // 5x5 area at center — should get 25 tiles
+        var tiles = BoardSystem.GetTilesInArea(board, new Position(2, 3), 2);
+        Assert.Equal(25, tiles.Count);
+    }
 }
