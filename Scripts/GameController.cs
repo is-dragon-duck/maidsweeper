@@ -9,7 +9,7 @@ namespace Maidsweeper.Scripts;
 /// <summary>
 /// Root controller: creates the game, handles input events, updates UI.
 /// Bridges Godot signals to pure C# GameRunner.
-/// Manages card targeting flow.
+/// Manages card targeting flow and game-over overlay.
 /// </summary>
 public partial class GameController : MarginContainer
 {
@@ -22,6 +22,13 @@ public partial class GameController : MarginContainer
     private GameState _state = null!;
     private Random _rng = null!;
     private readonly TargetingController _targeting = new();
+
+    // Game-over overlay (created programmatically)
+    private ColorRect _overlayDim = null!;
+    private PanelContainer _overlayPanel = null!;
+    private Label _overlayTitle = null!;
+    private Label _overlayDetails = null!;
+    private Button _playAgainButton = null!;
 
     public override void _Ready()
     {
@@ -37,6 +44,7 @@ public partial class GameController : MarginContainer
         _hud.EndTurnPressed += OnEndTurnPressed;
         _cancelButton.Pressed += OnCancelTargeting;
 
+        CreateGameOverOverlay();
         StartNewGame();
     }
 
@@ -54,12 +62,70 @@ public partial class GameController : MarginContainer
         }
     }
 
+    private void CreateGameOverOverlay()
+    {
+        // Semi-transparent dim layer
+        _overlayDim = new ColorRect
+        {
+            Color = new Color(0, 0, 0, 0.5f),
+            Visible = false
+        };
+        _overlayDim.SetAnchorsPreset(LayoutPreset.FullRect);
+        _overlayDim.MouseFilter = MouseFilterEnum.Stop; // Block clicks through to game
+        AddChild(_overlayDim);
+
+        // Center container
+        var center = new CenterContainer();
+        center.SetAnchorsPreset(LayoutPreset.FullRect);
+        center.MouseFilter = MouseFilterEnum.Ignore;
+        _overlayDim.AddChild(center);
+
+        // Panel
+        var panelStyle = new StyleBoxFlat
+        {
+            BgColor = new Color(0.12f, 0.12f, 0.15f, 0.95f),
+            ContentMarginLeft = 40,
+            ContentMarginRight = 40,
+            ContentMarginTop = 30,
+            ContentMarginBottom = 30,
+            CornerRadiusBottomLeft = 8,
+            CornerRadiusBottomRight = 8,
+            CornerRadiusTopLeft = 8,
+            CornerRadiusTopRight = 8
+        };
+        _overlayPanel = new PanelContainer();
+        _overlayPanel.AddThemeStyleboxOverride("panel", panelStyle);
+        center.AddChild(_overlayPanel);
+
+        var vbox = new VBoxContainer();
+        vbox.AddThemeConstantOverride("separation", 16);
+        vbox.Alignment = BoxContainer.AlignmentMode.Center;
+        _overlayPanel.AddChild(vbox);
+
+        _overlayTitle = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _overlayTitle.AddThemeFontSizeOverride("font_size", 32);
+        vbox.AddChild(_overlayTitle);
+
+        _overlayDetails = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _overlayDetails.AddThemeFontSizeOverride("font_size", 16);
+        vbox.AddChild(_overlayDetails);
+
+        _playAgainButton = new Button
+        {
+            Text = "Play Again",
+            CustomMinimumSize = new Vector2(150, 40)
+        };
+        _playAgainButton.Pressed += OnPlayAgain;
+        vbox.AddChild(_playAgainButton);
+    }
+
     private void StartNewGame()
     {
         _rng = new Random();
         _state = GameRunner.CreateGame(LevelConfigs.Level1, _rng);
 
         _boardNode.BuildBoard(_state.Board);
+        _overlayDim.Visible = false;
         RefreshUI();
     }
 
@@ -81,7 +147,6 @@ public partial class GameController : MarginContainer
             _handDisplay.SetSelectedCard(_targeting.TargetCard.Id);
             _boardNode.SetTargetingHighlights(_state.Board);
 
-            // Re-apply selected highlights
             foreach (var pos in _targeting.SelectedTargets)
             {
                 _boardNode.SetTargetSelected(pos, true);
@@ -92,6 +157,27 @@ public partial class GameController : MarginContainer
             _handDisplay.ClearSelection();
             _boardNode.ClearTargetingHighlights();
         }
+    }
+
+    private void ShowGameOverOverlay()
+    {
+        if (_targeting.IsTargeting)
+            CancelTargeting();
+
+        var won = _state.GameStatus == GameStatus.Won;
+
+        _overlayTitle.Text = won ? "Floor Cleared!" : "Game Over";
+        _overlayTitle.AddThemeColorOverride("font_color",
+            won ? new Color(0.3f, 0.9f, 0.4f) : new Color(0.9f, 0.3f, 0.25f));
+
+        var revealedPlayer = _state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
+        var totalPlayer = _state.Board.Tiles.Count(t => t.Owner == TileOwner.Player);
+
+        _overlayDetails.Text = won
+            ? $"All {totalPlayer} tiles found in {_state.TurnNumber} turns"
+            : $"Found {revealedPlayer} of {totalPlayer} tiles ({_state.TurnNumber} turns)";
+
+        _overlayDim.Visible = true;
     }
 
     private void OnTileClicked(int row, int col)
@@ -115,12 +201,12 @@ public partial class GameController : MarginContainer
 
             if (result.GameOver)
             {
-                GD.Print($"Game over: {_state.GameStatus}");
+                ShowGameOverOverlay();
             }
         }
-        catch (InvalidOperationException e)
+        catch (InvalidOperationException)
         {
-            GD.Print($"Cannot reveal: {e.Message}");
+            // Already revealed or invalid — silently ignore
         }
     }
 
@@ -137,7 +223,6 @@ public partial class GameController : MarginContainer
         }
         else
         {
-            // Update banner message for multi-target
             _targetingLabel.Text = $"{_targeting.TargetCard!.Name}: {_targeting.TargetingMessage}";
         }
     }
@@ -146,7 +231,6 @@ public partial class GameController : MarginContainer
     {
         if (_state.GameStatus != GameStatus.Playing) return;
 
-        // If already targeting, cancel first
         if (_targeting.IsTargeting)
         {
             CancelTargeting();
@@ -156,20 +240,15 @@ public partial class GameController : MarginContainer
         if (card == null) return;
 
         if (!DeckSystem.CanPlayCard(_state, card))
-        {
-            GD.Print($"Cannot afford {card.Name} (cost {card.Cost}, energy {_state.Energy})");
             return;
-        }
 
         if (TargetingController.RequiresTargeting(card.EffectType))
         {
-            // Enter targeting mode
             _targeting.BeginTargeting(card);
             UpdateTargetingUI();
         }
         else
         {
-            // Immediate card — play directly
             PlayCard(card, null);
         }
     }
@@ -194,11 +273,7 @@ public partial class GameController : MarginContainer
 
             if (result.GameOver)
             {
-                GD.Print($"Game over: {_state.GameStatus}");
-            }
-            else if (result.TurnEnded)
-            {
-                GD.Print($"Card caused turn end. Now turn {_state.TurnNumber}");
+                ShowGameOverOverlay();
             }
         }
         catch (Exception e)
@@ -222,11 +297,21 @@ public partial class GameController : MarginContainer
             var result = GameRunner.ProcessEndTurn(_state, _rng);
             _state = result.State;
             RefreshUI();
+
+            if (result.GameOver)
+            {
+                ShowGameOverOverlay();
+            }
         }
         catch (InvalidOperationException e)
         {
             GD.Print($"Cannot end turn: {e.Message}");
         }
+    }
+
+    private void OnPlayAgain()
+    {
+        StartNewGame();
     }
 
     private void OnCancelTargeting()

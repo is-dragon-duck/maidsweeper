@@ -417,4 +417,61 @@ public class CardEffectTests
         Assert.Throws<InvalidOperationException>(() =>
             CardEffectSystem.PlayCard(state, spritz, [playerPos], new Random(42)));
     }
+
+    // --- Edge Case Tests ---
+
+    [Fact]
+    public void Instructions_FewPlayerTilesReturnsEmpty()
+    {
+        // Board with only 1 player tile — not enough for Instructions
+        var config = new LevelConfig
+        {
+            Width = 2, Height = 2,
+            PlayerCount = 1, RivalCount = 2, NeutralCount = 1, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.RecallImperious with { Id = "r1" }],
+            Energy = 3
+        };
+
+        var rng = new Random(99);
+        var newState = CardEffectSystem.ExecuteInstructions(state, rng, state.Hand[0]);
+
+        // Should produce no clues (not crash)
+        var tilesWithClues = newState.Board.Tiles.Count(t => t.Annotations.ClueResults.Count > 0);
+        Assert.Equal(0, tilesWithClues);
+    }
+
+    [Fact]
+    public void Scurry_ThrowsOnRevealedTarget()
+    {
+        var state = CreateLevel1Game();
+        var pos1 = FindFirstUnrevealed(state, TileOwner.Player);
+        var pos2 = FindFirstUnrevealed(state, TileOwner.Rival);
+
+        // Reveal pos1 first
+        state = state with { Board = BoardSystem.RevealTile(state.Board, pos1, PlayerType.Player) };
+
+        var card = state.Hand.First(c => c.EffectType == CardEffectType.Scurry);
+        Assert.Throws<ArgumentException>(() =>
+            CardEffectSystem.ExecuteScurry(state, [pos1, pos2], new Random(42), card));
+    }
+
+    [Fact]
+    public void PlayCard_LastCardInHandLeavesEmptyHand()
+    {
+        var card = CardDefinitions.Tingle with { Id = "t_last" };
+        var state = CreateLevel1Game() with
+        {
+            Hand = new List<Card> { card },
+            Energy = 1
+        };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
+
+        Assert.Empty(newState.Hand);
+    }
 }

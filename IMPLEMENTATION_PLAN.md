@@ -32,7 +32,7 @@ These are the cards every run begins with. They're the foundation of the core pu
 
 ## Stage 1: First Playable Floor
 **Goal**: Play a single floor of Minesweeper-with-cards that feels like the real game. All 5 starter card types work end-to-end with visible information feedback.
-**Status**: In Progress (Milestones 1-5 complete — headless game logic done, 87 tests passing)
+**Status**: Complete (Milestones 1-10 done — headless game logic + Godot UI, 90 tests passing)
 
 ### What the player experiences
 Launch the game, see a 6x5 grid. Draw 5 cards. Play Spritz on a tile to learn it's safe. Play Imperious Instructions and see colored pips appear on tiles. Click a tile to reveal it — see an adjacency number. Non-player tile ends your turn. Simple AI reveals a tile. New turn begins. Find all your tiles to win.
