@@ -5,6 +5,13 @@
 [ext_resource type="Script" path="res://Scripts/HUD.cs" id="3"]
 [ext_resource type="Script" path="res://Scripts/HandDisplay.cs" id="4"]
 
+[sub_resource type="StyleBoxFlat" id="targeting_bg"]
+bg_color = Color(0.15, 0.3, 0.15, 1)
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+
 [sub_resource type="StyleBoxFlat" id="hand_bg"]
 bg_color = Color(0.15, 0.15, 0.18, 1)
 content_margin_left = 10.0
@@ -46,6 +53,24 @@ layout_mode = 2
 custom_minimum_size = Vector2(200, 0)
 theme_override_constants/separation = 8
 script = ExtResource("3")
+
+[node name="TargetingBanner" type="PanelContainer" parent="Layout"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("targeting_bg")
+
+[node name="HBox" type="HBoxContainer" parent="Layout/TargetingBanner"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TargetingLabel" type="Label" parent="Layout/TargetingBanner/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Select a tile"
+
+[node name="CancelButton" type="Button" parent="Layout/TargetingBanner/HBox"]
+layout_mode = 2
+text = "Cancel"
 
 [node name="HandPanel" type="PanelContainer" parent="Layout"]
 layout_mode = 2

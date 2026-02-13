@@ -20,11 +20,18 @@ public partial class TileView : Control
     private static readonly Color PlayerAdjColor = new(0.6f, 0.1f, 0.2f);  // dark pink
     private static readonly Color RivalAdjColor = new(0.1f, 0.2f, 0.6f);   // dark blue
 
+    // Targeting mode colors
+    private static readonly Color TargetValidColor = new(0.35f, 0.45f, 0.35f);  // greenish gray
+    private static readonly Color TargetSelectedColor = new(0.9f, 0.8f, 0.2f);  // yellow highlight
+    private static readonly Color TargetBorderColor = new(0.2f, 0.8f, 0.2f);    // green border
+
     private bool _isRevealed;
     private TileOwner _owner;
     private int _adjacencyCount;
     private PlayerType? _revealedBy;
     private bool _isHovered;
+    private bool _isTargetValid;
+    private bool _isTargetSelected;
 
     public override void _Draw()
     {
@@ -34,7 +41,16 @@ public partial class TileView : Control
         Color bgColor;
         if (!_isRevealed)
         {
-            bgColor = _isHovered ? HoverColor : UnrevealedColor;
+            if (_isTargetSelected)
+                bgColor = TargetSelectedColor;
+            else if (_isTargetValid && _isHovered)
+                bgColor = TargetValidColor.Lightened(0.15f);
+            else if (_isTargetValid)
+                bgColor = TargetValidColor;
+            else if (_isHovered)
+                bgColor = HoverColor;
+            else
+                bgColor = UnrevealedColor;
         }
         else
         {
@@ -50,8 +66,10 @@ public partial class TileView : Control
 
         DrawRect(rect, bgColor);
 
-        // Border
-        DrawRect(rect, new Color(0.2f, 0.2f, 0.2f), false, 1.0f);
+        // Border (green when valid target)
+        var borderColor = _isTargetValid && !_isRevealed ? TargetBorderColor : new Color(0.2f, 0.2f, 0.2f);
+        var borderWidth = _isTargetSelected ? 3.0f : 1.0f;
+        DrawRect(rect, borderColor, false, borderWidth);
 
         // Adjacency number when revealed (always shown, including 0)
         if (_isRevealed)
@@ -82,6 +100,25 @@ public partial class TileView : Control
     {
         if (_isRevealed) return;
         _isHovered = hovered;
+        QueueRedraw();
+    }
+
+    public void SetTargetValid(bool valid)
+    {
+        _isTargetValid = valid;
+        QueueRedraw();
+    }
+
+    public void SetTargetSelected(bool selected)
+    {
+        _isTargetSelected = selected;
+        QueueRedraw();
+    }
+
+    public void ClearTargetingState()
+    {
+        _isTargetValid = false;
+        _isTargetSelected = false;
         QueueRedraw();
     }
 }

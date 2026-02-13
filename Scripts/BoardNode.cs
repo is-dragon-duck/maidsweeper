@@ -72,6 +72,39 @@ public partial class BoardNode : Node2D
         }
     }
 
+    public void SetTargetingHighlights(Board board)
+    {
+        if (_tileNodes == null) return;
+
+        for (var row = 0; row < board.Height; row++)
+        {
+            for (var col = 0; col < board.Width; col++)
+            {
+                var tile = board.GetTile(new Position(row, col));
+                _tileNodes[row, col].SetTargetValid(!tile.IsRevealed);
+            }
+        }
+    }
+
+    public void SetTargetSelected(Position pos, bool selected)
+    {
+        if (_tileNodes == null) return;
+        _tileNodes[pos.Row, pos.Col].SetTargetSelected(selected);
+    }
+
+    public void ClearTargetingHighlights()
+    {
+        if (_tileNodes == null) return;
+
+        for (var row = 0; row < _tileNodes.GetLength(0); row++)
+        {
+            for (var col = 0; col < _tileNodes.GetLength(1); col++)
+            {
+                _tileNodes[row, col].ClearTargetingState();
+            }
+        }
+    }
+
     private void OnTileClicked(int row, int col)
     {
         EmitSignal(SignalName.TileClicked, row, col);

@@ -55,4 +55,8 @@ public partial class TileNode : Control
         _isRevealed = tile.IsRevealed;
         _view.UpdateVisual(tile);
     }
+
+    public void SetTargetValid(bool valid) => _view.SetTargetValid(valid);
+    public void SetTargetSelected(bool selected) => _view.SetTargetSelected(selected);
+    public void ClearTargetingState() => _view.ClearTargetingState();
 }
