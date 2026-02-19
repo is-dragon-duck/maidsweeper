@@ -10,6 +10,7 @@ public record SpecialTileConfig
 public record UponFinishConfig
 {
     public bool CardReward { get; init; }
+    public bool UpgradeReward { get; init; }
     public string? NextLevelId { get; init; }
 }
 
@@ -24,6 +25,8 @@ public record LevelConfig
     public required int NobleCount { get; init; }
     public IReadOnlyList<Position> UnusedLocations { get; init; } = [];
     public IReadOnlyList<SpecialTileConfig> SpecialTiles { get; init; } = [];
+    public AdjacencyRule AdjacencyRule { get; init; } = AdjacencyRule.King;
+    public int InitialRivalReveal { get; init; }
     public UponFinishConfig? UponFinish { get; init; }
 }
 
@@ -96,6 +99,184 @@ public static class LevelConfigs
                 EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
             }
         ],
+        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level4" }
+    };
+
+    /// <summary>
+    /// Level 4: 7x6, Manhattan-2 adjacency. 3 ExtraDirty, 3 nobles.
+    /// </summary>
+    public static readonly LevelConfig Level4 = new()
+    {
+        LevelId = "level4",
+        Width = 7,
+        Height = 6,
+        PlayerCount = 14,
+        RivalCount = 12,
+        NeutralCount = 11,
+        NobleCount = 3,
+        AdjacencyRule = AdjacencyRule.Manhattan2,
+        UnusedLocations = [new Position(0, 0), new Position(5, 6)],
+        SpecialTiles =
+        [
+            new SpecialTileConfig
+            {
+                Type = SpecialTileType.ExtraDirty,
+                Count = 3,
+                EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
+            }
+        ],
+        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level5" }
+    };
+
+    /// <summary>
+    /// Level 5: 7x7 with complex holes, King adjacency. 4 nobles, 6 ExtraDirty.
+    /// Card + Upgrade reward.
+    /// </summary>
+    public static readonly LevelConfig Level5 = new()
+    {
+        LevelId = "level5",
+        Width = 7,
+        Height = 7,
+        PlayerCount = 12,
+        RivalCount = 11,
+        NeutralCount = 9,
+        NobleCount = 4,
+        UnusedLocations =
+        [
+            // Diamond-shaped hole pattern in center
+            new Position(2, 3),
+            new Position(3, 2), new Position(3, 3), new Position(3, 4),
+            new Position(4, 3),
+            // Corner holes
+            new Position(0, 0), new Position(0, 6),
+            new Position(6, 0), new Position(6, 6),
+            // Edge indentations
+            new Position(0, 3), new Position(6, 3),
+            new Position(3, 0), new Position(3, 6)
+        ],
+        SpecialTiles =
+        [
+            new SpecialTileConfig
+            {
+                Type = SpecialTileType.ExtraDirty,
+                Count = 6,
+                EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
+            }
+        ],
+        UponFinish = new UponFinishConfig
+        {
+            CardReward = true,
+            UpgradeReward = true,
+            NextLevelId = "level6"
+        }
+    };
+
+    /// <summary>
+    /// Level 6: 7x7, Manhattan-2 adjacency. Initial rival reveal.
+    /// </summary>
+    public static readonly LevelConfig Level6 = new()
+    {
+        LevelId = "level6",
+        Width = 7,
+        Height = 7,
+        PlayerCount = 15,
+        RivalCount = 13,
+        NeutralCount = 11,
+        NobleCount = 3,
+        AdjacencyRule = AdjacencyRule.Manhattan2,
+        InitialRivalReveal = 1,
+        UnusedLocations =
+        [
+            new Position(0, 0), new Position(0, 6),
+            new Position(3, 3),
+            new Position(6, 0), new Position(6, 6),
+            new Position(1, 1), new Position(5, 5)
+        ],
+        SpecialTiles =
+        [
+            new SpecialTileConfig
+            {
+                Type = SpecialTileType.ExtraDirty,
+                Count = 5,
+                EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
+            }
+        ],
+        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level7" }
+    };
+
+    /// <summary>
+    /// Level 7: 7x7, Manhattan-2 adjacency. Initial rival reveal. Card + Upgrade.
+    /// </summary>
+    public static readonly LevelConfig Level7 = new()
+    {
+        LevelId = "level7",
+        Width = 7,
+        Height = 7,
+        PlayerCount = 13,
+        RivalCount = 11,
+        NeutralCount = 9,
+        NobleCount = 3,
+        AdjacencyRule = AdjacencyRule.Manhattan2,
+        InitialRivalReveal = 1,
+        UnusedLocations =
+        [
+            // Cross-shaped holes
+            new Position(0, 3),
+            new Position(3, 0), new Position(3, 3), new Position(3, 6),
+            new Position(6, 3),
+            // Corner indentations
+            new Position(0, 0), new Position(0, 6),
+            new Position(6, 0), new Position(6, 6),
+            // Additional holes
+            new Position(1, 5), new Position(5, 1),
+            new Position(2, 0), new Position(4, 6)
+        ],
+        SpecialTiles =
+        [
+            new SpecialTileConfig
+            {
+                Type = SpecialTileType.ExtraDirty,
+                Count = 4,
+                EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
+            }
+        ],
+        UponFinish = new UponFinishConfig
+        {
+            CardReward = true,
+            UpgradeReward = true,
+            NextLevelId = "level8"
+        }
+    };
+
+    /// <summary>
+    /// Level 8: 8x7, King adjacency. Final floor. Initial rival reveal.
+    /// </summary>
+    public static readonly LevelConfig Level8 = new()
+    {
+        LevelId = "level8",
+        Width = 8,
+        Height = 7,
+        PlayerCount = 17,
+        RivalCount = 15,
+        NeutralCount = 12,
+        NobleCount = 4,
+        InitialRivalReveal = 1,
+        UnusedLocations =
+        [
+            new Position(0, 0), new Position(0, 7),
+            new Position(3, 3), new Position(3, 4),
+            new Position(6, 0), new Position(6, 7),
+            new Position(1, 4), new Position(5, 3)
+        ],
+        SpecialTiles =
+        [
+            new SpecialTileConfig
+            {
+                Type = SpecialTileType.ExtraDirty,
+                Count = 4,
+                EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
+            }
+        ],
         UponFinish = new UponFinishConfig { CardReward = false }
     };
 
@@ -104,6 +285,11 @@ public static class LevelConfigs
         "level1" => Level1,
         "level2" => Level2,
         "level3" => Level3,
+        "level4" => Level4,
+        "level5" => Level5,
+        "level6" => Level6,
+        "level7" => Level7,
+        "level8" => Level8,
         _ => null
     };
 }

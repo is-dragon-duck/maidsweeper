@@ -81,7 +81,19 @@ public partial class BoardNode : Node2D
         }
     }
 
+    /// <summary>
+    /// Sets targeting highlights for unrevealed tiles (standard targeting).
+    /// </summary>
     public void SetTargetingHighlights(Board board)
+    {
+        SetTargetingHighlights(board, targetRevealed: false);
+    }
+
+    /// <summary>
+    /// Sets targeting highlights for tiles. When targetRevealed is true (Brat),
+    /// highlights revealed non-destroyed tiles instead of unrevealed.
+    /// </summary>
+    public void SetTargetingHighlights(Board board, bool targetRevealed)
     {
         if (_tileNodes == null) return;
 
@@ -90,7 +102,12 @@ public partial class BoardNode : Node2D
             for (var col = 0; col < board.Width; col++)
             {
                 var pos = new Position(row, col);
-                var isValidTarget = board.IsUsablePosition(pos) && !board.GetTile(pos).IsRevealed;
+                var tile = board.GetTile(pos);
+                bool isValidTarget;
+                if (targetRevealed)
+                    isValidTarget = board.IsUsablePosition(pos) && tile.IsRevealed && !tile.IsDestroyed;
+                else
+                    isValidTarget = board.IsUsablePosition(pos) && !tile.IsRevealed && !tile.IsDestroyed;
                 _tileNodes[row, col].SetTargetValid(isValidTarget);
             }
         }
@@ -104,7 +121,7 @@ public partial class BoardNode : Node2D
 
     /// <summary>
     /// Sets area highlight on all usable tiles within the given radius of center.
-    /// Used for Brush (3x3) and Sweep (5x5) preview.
+    /// Used for Brush (3x3), Sweep (5x5), and Argue (3x3) preview.
     /// </summary>
     public void SetAreaHighlight(Position center, int radius, Board board)
     {
@@ -119,6 +136,26 @@ public partial class BoardNode : Node2D
             {
                 var pos = new Position(row, col);
                 _tileNodes[row, col].SetAreaPreview(areaPositions.Contains(pos));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets cross-shaped area highlight (for Peek, AcceptHelp).
+    /// </summary>
+    public void SetCrossHighlight(Position center, Board board)
+    {
+        if (_tileNodes == null) return;
+
+        var tilesInCross = BoardSystem.GetTilesInCross(board, center);
+        var crossPositions = tilesInCross.Select(t => t.Position).ToHashSet();
+
+        for (var row = 0; row < board.Height; row++)
+        {
+            for (var col = 0; col < board.Width; col++)
+            {
+                var pos = new Position(row, col);
+                _tileNodes[row, col].SetAreaPreview(crossPositions.Contains(pos));
             }
         }
     }

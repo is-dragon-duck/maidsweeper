@@ -21,8 +21,186 @@ public static class CardEffectSystem
         hand.Remove(card);
         state = state with { Hand = hand };
 
-        // Execute effect
-        state = card.EffectType switch
+        // Execute effect — Peek needs special handling for conditional exhaust
+        bool shouldExhaust = card.Exhaust;
+
+        if (card.EffectType == CardEffectType.Peek)
+        {
+            bool foundNobles;
+            (state, foundNobles) = ExecutePeek(state, targets, card);
+            shouldExhaust = foundNobles;
+        }
+        else if (card.EffectType == CardEffectType.Glaze)
+        {
+            state = ExecuteGlaze(state, card);
+            shouldExhaust = !card.Enhanced; // Base exhausts, enhanced doesn't
+        }
+        else
+        {
+            state = card.EffectType switch
+            {
+                CardEffectType.Spritz => ExecuteSpritz(state, targets, card),
+                CardEffectType.Recall => ExecuteInstructions(state, rng, card),
+                CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
+                CardEffectType.Tingle => ExecuteTingle(state, rng, card),
+                CardEffectType.Twirl => ExecuteTwirl(state, card),
+                CardEffectType.Brush => ExecuteBrush(state, targets, rng),
+                CardEffectType.Sweep => ExecuteSweep(state, targets),
+                CardEffectType.Caffeinate => ExecuteCaffeinate(state),
+                CardEffectType.Breathe => ExecuteBreathe(state, rng),
+                CardEffectType.LockIn => ExecuteLockIn(state, rng),
+                CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
+                CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
+                CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
+                CardEffectType.Explode => ExecuteExplode(state, targets, card),
+                CardEffectType.Deliver => ExecuteDeliver(state, targets, card),
+                CardEffectType.Brat => ExecuteBrat(state, targets, card),
+                CardEffectType.Mollify => ExecuteMollify(state),
+                CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
+                CardEffectType.Ramble => ExecuteRamble(state, card),
+                CardEffectType.Mask => throw new InvalidOperationException("Use PlayMaskedCard for Mask"),
+                CardEffectType.Nap => throw new InvalidOperationException("Use PlayNap for Nap"),
+                _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
+            };
+        }
+
+        // Grant bonus spoon after successful play
+        if (card.BonusSpoon)
+        {
+            state = state with { Spoons = state.Spoons + 1 };
+        }
+
+        // Discard or exhaust
+        if (shouldExhaust)
+        {
+            state = DeckSystem.ExhaustCard(state, card);
+        }
+        else
+        {
+            var discardPile = state.DiscardPile.ToList();
+            discardPile.Add(card);
+            state = state with { DiscardPile = discardPile };
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Plays a Mask card: pay Mask's cost, remove both Mask and selected card from hand,
+    /// execute selected card's effect for free, exhaust selected card (always),
+    /// exhaust or discard Mask based on Enhanced.
+    /// </summary>
+    public static GameState PlayMaskedCard(GameState state, Card maskCard, Card selectedCard,
+        Position[]? selectedCardTargets, Random rng)
+    {
+        if (maskCard.EffectType != CardEffectType.Mask)
+            throw new ArgumentException("PlayMaskedCard requires a Mask card");
+        if (!DeckSystem.CanPlayCard(state, maskCard))
+            throw new InvalidOperationException("Not enough spoons for Mask");
+
+        // Pay Mask's cost (0) and remove from hand
+        state = DeckSystem.SpendSpoons(state, maskCard);
+        var hand = state.Hand.ToList();
+        hand.Remove(maskCard);
+        state = state with { Hand = hand };
+
+        // Remove selected card from hand
+        hand = state.Hand.ToList();
+        if (!hand.Remove(selectedCard))
+            throw new ArgumentException("Selected card not in hand");
+        state = state with { Hand = hand };
+
+        // Execute the selected card's effect (for free — cost was 0 via Mask)
+        state = ExecuteEffect(state, selectedCard, selectedCardTargets, rng);
+
+        // Handle bonus spoon for selected card
+        if (selectedCard.BonusSpoon)
+            state = state with { Spoons = state.Spoons + 1 };
+
+        // Handle Mask bonus spoon
+        if (maskCard.BonusSpoon)
+            state = state with { Spoons = state.Spoons + 1 };
+
+        // Exhaust the selected card (always, regardless of its Exhaust flag)
+        state = DeckSystem.ExhaustCard(state, selectedCard);
+
+        // Exhaust or discard Mask
+        if (!maskCard.Enhanced)
+        {
+            state = DeckSystem.ExhaustCard(state, maskCard);
+        }
+        else
+        {
+            var discard = state.DiscardPile.ToList();
+            discard.Add(maskCard);
+            state = state with { DiscardPile = discard };
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Plays a Nap card: pay cost, retrieve a card from exhaust pile to hand, exhaust Nap.
+    /// Enhanced: also gain spoons equal to retrieved card's cost.
+    /// </summary>
+    public static GameState PlayNap(GameState state, Card napCard, Card? retrievedCard, Random rng)
+    {
+        if (napCard.EffectType != CardEffectType.Nap)
+            throw new ArgumentException("PlayNap requires a Nap card");
+        if (!DeckSystem.CanPlayCard(state, napCard))
+            throw new InvalidOperationException("Not enough spoons for Nap");
+
+        // Pay Nap's cost and remove from hand
+        state = DeckSystem.SpendSpoons(state, napCard);
+        var hand = state.Hand.ToList();
+        hand.Remove(napCard);
+        state = state with { Hand = hand };
+
+        // Retrieve card from exhaust pile (if one was selected)
+        if (retrievedCard != null)
+        {
+            var exhaust = state.ExhaustPile.ToList();
+            if (!exhaust.Remove(retrievedCard))
+                throw new ArgumentException("Retrieved card not in exhaust pile");
+
+            hand = state.Hand.ToList();
+            hand.Add(retrievedCard);
+            state = state with { Hand = hand, ExhaustPile = exhaust };
+
+            // Enhanced: gain spoons equal to retrieved card's cost
+            if (napCard.Enhanced)
+            {
+                state = state with { Spoons = state.Spoons + retrievedCard.Cost };
+            }
+        }
+
+        // Handle bonus spoon for Nap
+        if (napCard.BonusSpoon)
+            state = state with { Spoons = state.Spoons + 1 };
+
+        // Exhaust Nap
+        state = DeckSystem.ExhaustCard(state, napCard);
+
+        return state;
+    }
+
+    /// <summary>
+    /// Executes a card's effect without handling cost, hand removal, or exhaust.
+    /// Used by PlayMaskedCard to execute the selected card's effect.
+    /// </summary>
+    private static GameState ExecuteEffect(GameState state, Card card, Position[]? targets, Random rng)
+    {
+        // For Peek's conditional exhaust, we ignore it here (Mask always exhausts the played card)
+        if (card.EffectType == CardEffectType.Peek)
+        {
+            var (newState, _) = ExecutePeek(state, targets, card);
+            return newState;
+        }
+
+        if (card.EffectType == CardEffectType.Glaze)
+            return ExecuteGlaze(state, card);
+
+        return card.EffectType switch
         {
             CardEffectType.Spritz => ExecuteSpritz(state, targets, card),
             CardEffectType.Recall => ExecuteInstructions(state, rng, card),
@@ -35,22 +213,16 @@ public static class CardEffectSystem
             CardEffectType.Breathe => ExecuteBreathe(state, rng),
             CardEffectType.LockIn => ExecuteLockIn(state, rng),
             CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
+            CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
+            CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
+            CardEffectType.Explode => ExecuteExplode(state, targets, card),
+            CardEffectType.Deliver => ExecuteDeliver(state, targets, card),
+            CardEffectType.Brat => ExecuteBrat(state, targets, card),
+            CardEffectType.Mollify => ExecuteMollify(state),
+            CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
+            CardEffectType.Ramble => ExecuteRamble(state, card),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
         };
-
-        // Discard or exhaust
-        if (card.Exhaust)
-        {
-            state = DeckSystem.ExhaustCard(state, card);
-        }
-        else
-        {
-            var discardPile = state.DiscardPile.ToList();
-            discardPile.Add(card);
-            state = state with { DiscardPile = discardPile };
-        }
-
-        return state;
     }
 
     /// <summary>
@@ -335,6 +507,341 @@ public static class CardEffectSystem
         }
 
         return state with { Board = board };
+    }
+
+    /// <summary>
+    /// Argue: Target 1 tile (center of 3x3 area).
+    /// Neutral tiles → annotated {Neutral}. Non-neutral tiles → annotated {Player, Rival, Noble}.
+    /// Enhanced: also draw 1 card.
+    /// </summary>
+    public static GameState ExecuteArgue(GameState state, Position[]? targets, Random rng, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Argue requires exactly 1 target tile");
+
+        var center = targets[0];
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
+
+        foreach (var tile in tilesInArea)
+        {
+            if (tile.IsRevealed) continue;
+
+            var subset = tile.Owner == TileOwner.Neutral
+                ? new HashSet<TileOwner> { TileOwner.Neutral }
+                : new HashSet<TileOwner> { TileOwner.Player, TileOwner.Rival, TileOwner.Noble };
+
+            state = AnnotationSystem.AddOwnerSubset(state, tile.Position, subset);
+        }
+
+        if (card.Enhanced)
+        {
+            state = DeckSystem.DrawCards(state, 1, rng);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Eavesdrop: Target 1 unrevealed tile. Does not reveal.
+    /// Base: Player → {Player}, else → {Rival, Neutral, Noble}. Adds player adjacency info.
+    /// Enhanced: exact owner type + full adjacency info.
+    /// </summary>
+    public static GameState ExecuteEavesdrop(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Eavesdrop requires exactly 1 target tile");
+
+        var pos = targets[0];
+        var tile = state.Board.GetTile(pos);
+
+        if (tile.IsRevealed)
+            throw new ArgumentException("Cannot Eavesdrop a revealed tile");
+
+        if (card.Enhanced)
+        {
+            // Exact owner type
+            state = AnnotationSystem.AddOwnerSubset(state, pos, new HashSet<TileOwner> { tile.Owner });
+            // Full adjacency info
+            var fullAdj = BoardSystem.CalculateFullAdjacency(state.Board, pos);
+            state = AnnotationSystem.AddAdjacencyInfo(state, pos, fullAdj);
+        }
+        else
+        {
+            // Is yours or not yours
+            var subset = tile.Owner == TileOwner.Player
+                ? new HashSet<TileOwner> { TileOwner.Player }
+                : new HashSet<TileOwner> { TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
+            state = AnnotationSystem.AddOwnerSubset(state, pos, subset);
+
+            // Player adjacency only
+            var playerAdj = BoardSystem.CalculatePlayerAdjacency(state.Board, pos);
+            state = AnnotationSystem.AddAdjacencyInfo(state, pos, playerAdj);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Peek: Target 1 tile (center of burst-1-cross, or 3x3 if enhanced).
+    /// Noble tiles → annotated {Noble}. Non-noble tiles → annotated {Player, Rival, Neutral}.
+    /// Returns (state, foundNobles) for conditional exhaust.
+    /// </summary>
+    public static (GameState state, bool foundNobles) ExecutePeek(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Peek requires exactly 1 target tile");
+
+        var center = targets[0];
+        var tilesInArea = card.Enhanced
+            ? BoardSystem.GetTilesInArea(state.Board, center, 1)
+            : BoardSystem.GetTilesInCross(state.Board, center);
+
+        var foundNobles = false;
+
+        foreach (var tile in tilesInArea)
+        {
+            if (tile.IsRevealed) continue;
+
+            if (tile.Owner == TileOwner.Noble)
+            {
+                state = AnnotationSystem.AddOwnerSubset(state, tile.Position,
+                    new HashSet<TileOwner> { TileOwner.Noble });
+                foundNobles = true;
+            }
+            else
+            {
+                state = AnnotationSystem.AddOwnerSubset(state, tile.Position,
+                    new HashSet<TileOwner> { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral });
+            }
+        }
+
+        return (state, foundNobles);
+    }
+
+    /// <summary>
+    /// Explode: Destroy an unrevealed tile.
+    /// Base: gain 1 Complaints stack, add Mollify to hand.
+    /// Enhanced: no Complaints or Mollify.
+    /// </summary>
+    public static GameState ExecuteExplode(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Explode requires exactly 1 target tile");
+
+        var pos = targets[0];
+        var tile = state.Board.GetTile(pos);
+
+        if (tile.IsRevealed)
+            throw new ArgumentException("Cannot Explode a revealed tile");
+        if (tile.IsDestroyed)
+            throw new ArgumentException("Cannot Explode a destroyed tile");
+
+        // Destroy the tile
+        var newTiles = state.Board.Tiles.ToList();
+        newTiles[state.Board.TileIndex(pos)] = tile with { IsDestroyed = true };
+        state = state with { Board = state.Board with { Tiles = newTiles } };
+
+        if (!card.Enhanced)
+        {
+            // Gain 1 Complaints stack
+            state = state with { ComplaintsStacks = state.ComplaintsStacks + 1 };
+
+            // Add Mollify card to hand
+            var mollify = CardDefinitions.Mollify with { Id = $"mollify_{Guid.NewGuid():N}" };
+            var hand = state.Hand.ToList();
+            hand.Add(mollify);
+            state = state with { Hand = hand };
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Deliver: Target an unrevealed tile.
+    /// If Noble: convert to Neutral, reveal with player adjacency, +2 copper, does not end turn.
+    /// If not Noble (base): no effect.
+    /// Enhanced: also adds noble adjacency info regardless.
+    /// </summary>
+    public static GameState ExecuteDeliver(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Deliver requires exactly 1 target tile");
+
+        var pos = targets[0];
+        var tile = state.Board.GetTile(pos);
+
+        if (tile.IsRevealed)
+            throw new ArgumentException("Cannot Deliver a revealed tile");
+
+        // Enhanced: add noble adjacency info BEFORE reveal (since annotation skips revealed tiles)
+        if (card.Enhanced)
+        {
+            var nobleCount = BoardSystem.GetNeighbors(state.Board, pos)
+                .Count(n => state.Board.GetTile(n).Owner == TileOwner.Noble);
+            state = AnnotationSystem.AddAdjacencyInfo(state, pos, new AdjacencyInfo { NobleCount = nobleCount });
+        }
+
+        if (tile.Owner == TileOwner.Noble)
+        {
+            // Convert noble to neutral, clear ExtraDirty
+            var newTiles = state.Board.Tiles.ToList();
+            var currentTile = state.Board.GetTile(pos); // Re-fetch after possible annotation
+            var converted = currentTile with { Owner = TileOwner.Neutral, SpecialTile = null };
+            newTiles[state.Board.TileIndex(pos)] = converted;
+            var board = state.Board with { Tiles = newTiles };
+
+            // Reveal the converted tile (now neutral, so player adjacency)
+            board = BoardSystem.RevealTile(board, pos, PlayerType.Player);
+            state = state with { Board = board };
+
+            // Gain 2 copper
+            state = state with { Copper = state.Copper + 2 };
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Brat: Target a revealed tile. Unreveal it, keeping annotations.
+    /// Enhanced: also gain 2 copper.
+    /// </summary>
+    public static GameState ExecuteBrat(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Brat requires exactly 1 target tile");
+
+        var pos = targets[0];
+        var tile = state.Board.GetTile(pos);
+
+        if (!tile.IsRevealed)
+            throw new ArgumentException("Brat can only target revealed tiles");
+
+        // Unreveal the tile, keeping annotations and adjacency info
+        var unrevealedTile = tile with
+        {
+            IsRevealed = false,
+            RevealedBy = null
+        };
+
+        var newTiles = state.Board.Tiles.ToList();
+        newTiles[state.Board.TileIndex(pos)] = unrevealedTile;
+        state = state with { Board = state.Board with { Tiles = newTiles } };
+
+        if (card.Enhanced)
+        {
+            state = state with { Copper = state.Copper + 2 };
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Accept Help: Target 1 tile (center of burst-1-cross).
+    /// Find the safest owner type among unrevealed tiles. Reveal all tiles of that type.
+    /// ExtraDirty tiles are cleaned and annotated instead of revealed.
+    /// After playing, sets AcceptHelpDiscount for the rest of the floor.
+    /// Enhanced: annotate all tiles with exact owner instead of revealing.
+    /// </summary>
+    public static GameState ExecuteAcceptHelp(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Accept Help requires exactly 1 target tile");
+
+        var center = targets[0];
+        var tilesInCross = BoardSystem.GetTilesInCross(state.Board, center);
+        var unrevealed = tilesInCross.Where(t => !t.IsRevealed).ToList();
+
+        if (unrevealed.Count == 0)
+        {
+            // No unrevealed tiles, just set discount
+            return state with { AcceptHelpDiscount = true };
+        }
+
+        // Find the safest owner type present
+        var safestType = unrevealed
+            .Select(t => t.Owner)
+            .Distinct()
+            .OrderByDescending(GetSafety)
+            .First();
+
+        if (card.Enhanced)
+        {
+            // Annotate safest tiles with exact owner
+            foreach (var tile in unrevealed)
+            {
+                if (tile.Owner == safestType)
+                {
+                    state = AnnotationSystem.AddOwnerSubset(state, tile.Position,
+                        new HashSet<TileOwner> { tile.Owner });
+                }
+                else
+                {
+                    // Non-safest: annotate as "anything less safe than the safest"
+                    var possibleOwners = new HashSet<TileOwner>();
+                    foreach (TileOwner owner in Enum.GetValues<TileOwner>())
+                    {
+                        if (GetSafety(owner) <= GetSafety(safestType))
+                            possibleOwners.Add(owner);
+                    }
+                    state = AnnotationSystem.AddOwnerSubset(state, tile.Position, possibleOwners);
+                }
+            }
+        }
+        else
+        {
+            // Base: reveal all tiles of the safest type
+            foreach (var tile in unrevealed)
+            {
+                if (tile.Owner != safestType) continue;
+
+                if (tile.IsDirty)
+                {
+                    // Clean ExtraDirty, annotate with exact owner instead of revealing
+                    var cleanedTile = tile with { SpecialTile = null };
+                    var newTiles = state.Board.Tiles.ToList();
+                    newTiles[state.Board.TileIndex(tile.Position)] = cleanedTile;
+                    state = state with { Board = state.Board with { Tiles = newTiles } };
+                    state = AnnotationSystem.AddOwnerSubset(state, tile.Position,
+                        new HashSet<TileOwner> { tile.Owner });
+                }
+                else
+                {
+                    var newBoard = BoardSystem.RevealTile(state.Board, tile.Position, PlayerType.Player);
+                    state = state with { Board = newBoard };
+                }
+            }
+        }
+
+        // Set discount for future Accept Help cards
+        return state with { AcceptHelpDiscount = true };
+    }
+
+    /// <summary>
+    /// Ramble: Add Distraction stacks to the rival.
+    /// Base: 2 stacks. Enhanced: 4 stacks.
+    /// </summary>
+    public static GameState ExecuteRamble(GameState state, Card card)
+    {
+        var stacks = card.Enhanced ? 4 : 2;
+        return state with { DistractionStacks = state.DistractionStacks + stacks };
+    }
+
+    /// <summary>
+    /// Glaze: Gain 1 Excuses stack. Protects against the next noble reveal.
+    /// Exhaust behavior handled by PlayCard (base exhausts, enhanced doesn't).
+    /// </summary>
+    public static GameState ExecuteGlaze(GameState state, Card card)
+    {
+        return state with { ExcusesStacks = state.ExcusesStacks + 1 };
+    }
+
+    /// <summary>
+    /// Mollify: Reduce Complaints stacks by 1.
+    /// </summary>
+    public static GameState ExecuteMollify(GameState state)
+    {
+        var newStacks = Math.Max(0, state.ComplaintsStacks - 1);
+        return state with { ComplaintsStacks = newStacks };
     }
 
     /// <summary>

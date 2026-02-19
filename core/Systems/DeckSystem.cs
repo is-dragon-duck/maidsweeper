@@ -106,20 +106,31 @@ public static class DeckSystem
     }
 
     /// <summary>
+    /// Returns the effective cost of a card, accounting for status effects.
+    /// Accept Help costs 0 when AcceptHelpDiscount is active.
+    /// </summary>
+    public static int GetEffectiveCost(GameState state, Card card)
+    {
+        if (card.EffectType == CardEffectType.AcceptHelp && state.AcceptHelpDiscount)
+            return 0;
+        return card.Cost;
+    }
+
+    /// <summary>
     /// Checks if a card can be played given current spoons.
     /// </summary>
     public static bool CanPlayCard(GameState state, Card card)
     {
-        return state.Spoons >= card.Cost;
+        return state.Spoons >= GetEffectiveCost(state, card);
     }
 
     /// <summary>
-    /// Deducts spoons for playing a card. SpoonReduced cards refund 1 spoon.
+    /// Deducts spoons for playing a card. Full cost is always paid upfront.
+    /// BonusSpoon is applied separately after the card effect executes.
     /// </summary>
     public static GameState SpendSpoons(GameState state, Card card)
     {
-        var netCost = card.Cost - (card.SpoonReduced ? 1 : 0);
-        var newSpoons = state.Spoons - netCost;
+        var newSpoons = state.Spoons - GetEffectiveCost(state, card);
 
         if (newSpoons < 0)
             throw new InvalidOperationException(

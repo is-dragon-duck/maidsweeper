@@ -192,7 +192,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 
 **Tests**: Verify card definitions exist with correct properties (cost, exhaust flag, effect type).
 
-**Status**: Not Started
+**Status**: Complete (12 card stubs, SpoonReduced→BonusSpoon rename, BonusSpoon grants after play, 151 tests)
 
 ---
 
@@ -223,7 +223,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Can't enhance an already-enhanced card
 - Can't add bonus spoon to a card that already has it
 
-**Status**: Not Started
+**Status**: Complete (upgrade generation, selection, skip, BonusSpoon grant after play, 162 tests)
 
 ---
 
@@ -257,7 +257,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Player annotations clear on floor transition
 - Multiple exclusions narrow subset correctly
 
-**Status**: Not Started
+**Status**: Complete (core logic: flag toggle, player exclusion, auto-flag, effective subset, 174 tests; Godot UI deferred to M24)
 
 ---
 
@@ -310,7 +310,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Burst-1-cross area calculation is correct
 - Burst-1-cross clips at board edges
 
-**Status**: Not Started
+**Status**: Complete (3 card effects, nullable AdjacencyInfo, conditional Peek exhaust, 193 tests)
 
 ---
 
@@ -373,7 +373,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Brat: enhanced also gives 2 copper
 - Brat: can only target revealed tiles
 
-**Status**: Not Started
+**Status**: Complete (tile destruction, Complaints/Mollify, Deliver conversion, Brat unreveal, 213 tests)
 
 ---
 
@@ -431,7 +431,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Glaze: multiple stacks → multiple protections
 - Noble reveal with no Excuses → still lose
 
-**Status**: Not Started
+**Status**: Complete (Accept Help, Ramble, Glaze, Excuses protection, AcceptHelpDiscount, 228 tests)
 
 ---
 
@@ -477,7 +477,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Nap: retrieved card is playable from hand
 - Nap: can't retrieve Nap with Nap (Nap isn't in exhaust when you play it)
 
-**Status**: Not Started
+**Status**: Complete (PlayMaskedCard, PlayNap, card-selection methods, 240 tests)
 
 ---
 
@@ -511,7 +511,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - Upgrade reward offered on correct floors
 - Win condition works with manhattan-2 adjacency
 
-**Status**: Not Started
+**Status**: Complete (Manhattan-2 adjacency, levels 4-8, initial rival reveal, expanded reward pool, 252 tests)
 
 ---
 

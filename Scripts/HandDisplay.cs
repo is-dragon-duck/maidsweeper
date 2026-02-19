@@ -1,5 +1,6 @@
 using Godot;
 using Maidsweeper.Core.Models;
+using Maidsweeper.Core.Systems;
 
 namespace Maidsweeper.Scripts;
 
@@ -25,7 +26,7 @@ public partial class HandDisplay : HBoxContainer
         {
             var cardUI = new CardUI();
             AddChild(cardUI);
-            var affordable = state.Spoons >= card.Cost;
+            var affordable = state.Spoons >= DeckSystem.GetEffectiveCost(state, card);
             cardUI.Setup(card, affordable);
             cardUI.CardClicked += OnCardClicked;
         }

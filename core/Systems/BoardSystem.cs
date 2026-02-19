@@ -55,7 +55,8 @@ public static class BoardSystem
             Width = config.Width,
             Height = config.Height,
             Tiles = tiles,
-            UnusedPositions = unusedSet
+            UnusedPositions = unusedSet,
+            AdjacencyRule = config.AdjacencyRule
         };
 
         // Assign special tiles
@@ -101,12 +102,15 @@ public static class BoardSystem
     /// </summary>
     public static List<Position> GetNeighbors(Board board, Position pos)
     {
-        var neighbors = new List<Position>(8);
+        var offsets = board.AdjacencyRule == AdjacencyRule.Manhattan2
+            ? Position.Manhattan2Offsets
+            : Position.KingOffsets;
+        var neighbors = new List<Position>(offsets.Length);
 
-        foreach (var (dRow, dCol) in Position.KingOffsets)
+        foreach (var (dRow, dCol) in offsets)
         {
             var neighbor = new Position(pos.Row + dRow, pos.Col + dCol);
-            if (board.IsUsablePosition(neighbor))
+            if (board.IsUsablePosition(neighbor) && !board.GetTile(neighbor).IsDestroyed)
             {
                 neighbors.Add(neighbor);
             }
@@ -176,7 +180,7 @@ public static class BoardSystem
             for (var col = center.Col - radius; col <= center.Col + radius; col++)
             {
                 var pos = new Position(row, col);
-                if (board.IsUsablePosition(pos))
+                if (board.IsUsablePosition(pos) && !board.GetTile(pos).IsDestroyed)
                 {
                     tiles.Add(board.GetTile(pos));
                 }
@@ -184,6 +188,54 @@ public static class BoardSystem
         }
 
         return tiles;
+    }
+
+    /// <summary>
+    /// Returns all usable tiles in a burst-1-cross area: center + 4 cardinal neighbors.
+    /// </summary>
+    public static List<Tile> GetTilesInCross(Board board, Position center)
+    {
+        var tiles = new List<Tile>();
+        var offsets = new[] { (0, 0), (-1, 0), (1, 0), (0, -1), (0, 1) };
+
+        foreach (var (dRow, dCol) in offsets)
+        {
+            var pos = new Position(center.Row + dRow, center.Col + dCol);
+            if (board.IsUsablePosition(pos) && !board.GetTile(pos).IsDestroyed)
+            {
+                tiles.Add(board.GetTile(pos));
+            }
+        }
+
+        return tiles;
+    }
+
+    /// <summary>
+    /// Calculates full adjacency info (counts of each owner type) for a tile's neighbors.
+    /// </summary>
+    public static AdjacencyInfo CalculateFullAdjacency(Board board, Position pos)
+    {
+        var neighbors = GetNeighbors(board, pos);
+        return new AdjacencyInfo
+        {
+            PlayerCount = neighbors.Count(n => board.GetTile(n).Owner == TileOwner.Player),
+            RivalCount = neighbors.Count(n => board.GetTile(n).Owner == TileOwner.Rival),
+            NeutralCount = neighbors.Count(n => board.GetTile(n).Owner == TileOwner.Neutral),
+            NobleCount = neighbors.Count(n => board.GetTile(n).Owner == TileOwner.Noble)
+        };
+    }
+
+    /// <summary>
+    /// Calculates only the player adjacency count for a tile's neighbors.
+    /// Other owner counts are left as null (unknown).
+    /// </summary>
+    public static AdjacencyInfo CalculatePlayerAdjacency(Board board, Position pos)
+    {
+        var neighbors = GetNeighbors(board, pos);
+        return new AdjacencyInfo
+        {
+            PlayerCount = neighbors.Count(n => board.GetTile(n).Owner == TileOwner.Player)
+        };
     }
 
     /// <summary>Fisher-Yates shuffle.</summary>

@@ -259,15 +259,15 @@ public class DeckSystemTests
     }
 
     [Fact]
-    public void SpendSpoons_SpoonReducedRefunds1()
+    public void SpendSpoons_BonusSpoonDoesNotReduceCost()
     {
         var state = CreateTestState(spoons: 3);
-        var card = new Card { Id = "er", Name = "Reduced", Cost = 2, EffectType = CardEffectType.Spritz, SpoonReduced = true };
+        var card = new Card { Id = "bs", Name = "Bonus", Cost = 2, EffectType = CardEffectType.Spritz, BonusSpoon = true };
 
         var newState = DeckSystem.SpendSpoons(state, card);
 
-        // Cost 2, refund 1 = net cost 1
-        Assert.Equal(2, newState.Spoons);
+        // Full cost paid upfront (BonusSpoon applied separately after effect)
+        Assert.Equal(1, newState.Spoons);
     }
 
     [Fact]

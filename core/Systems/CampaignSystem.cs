@@ -26,10 +26,25 @@ public static class CampaignSystem
     /// </summary>
     public static GameState CompleteFloor(GameState state, Random rng)
     {
+        // Apply Complaints copper penalty: lose 2 copper per stack
+        if (state.ComplaintsStacks > 0)
+        {
+            var penalty = state.ComplaintsStacks * 2;
+            state = state with
+            {
+                Copper = Math.Max(0, state.Copper - penalty),
+                ComplaintsStacks = 0
+            };
+        }
+
+        // Remove Mollify cards from persistent deck (they don't persist between floors)
+        var cleanedDeck = state.PersistentDeck.Where(c => c.EffectType != CardEffectType.Mollify).ToList();
+        state = state with { PersistentDeck = cleanedDeck };
+
         var config = LevelConfigs.GetById(state.CurrentLevelId);
         var uponFinish = config?.UponFinish;
 
-        if (uponFinish == null || (!uponFinish.CardReward && uponFinish.NextLevelId == null))
+        if (uponFinish == null || (!uponFinish.CardReward && !uponFinish.UpgradeReward && uponFinish.NextLevelId == null))
         {
             return state with { GamePhase = GamePhase.CampaignVictory };
         }
@@ -42,6 +57,11 @@ public static class CampaignSystem
                 GamePhase = GamePhase.CardReward,
                 CardRewardOptions = options
             };
+        }
+
+        if (uponFinish.UpgradeReward)
+        {
+            return TransitionToUpgradeReward(state, rng);
         }
 
         // No reward, advance directly
@@ -68,7 +88,8 @@ public static class CampaignSystem
     }
 
     /// <summary>
-    /// Player selects a card reward — adds it to persistent deck and starts next floor.
+    /// Player selects a card reward — adds it to persistent deck.
+    /// Then transitions to upgrade reward if configured, otherwise advances.
     /// </summary>
     public static GameState SelectCardReward(GameState state, Card selected, Random rng)
     {
@@ -80,15 +101,122 @@ public static class CampaignSystem
             CardRewardOptions = null
         };
 
-        return AdvanceToNextFloor(state, rng);
+        return TransitionAfterCardReward(state, rng);
     }
 
     /// <summary>
-    /// Player skips the card reward — starts next floor without adding a card.
+    /// Player skips the card reward.
+    /// Then transitions to upgrade reward if configured, otherwise advances.
     /// </summary>
     public static GameState SkipCardReward(GameState state, Random rng)
     {
         state = state with { CardRewardOptions = null };
+        return TransitionAfterCardReward(state, rng);
+    }
+
+    /// <summary>
+    /// After card reward (selected or skipped), check if upgrade reward follows.
+    /// </summary>
+    private static GameState TransitionAfterCardReward(GameState state, Random rng)
+    {
+        var config = LevelConfigs.GetById(state.CurrentLevelId);
+        if (config?.UponFinish?.UpgradeReward == true)
+        {
+            return TransitionToUpgradeReward(state, rng);
+        }
+
+        return AdvanceToNextFloor(state, rng);
+    }
+
+    /// <summary>
+    /// Transitions to the upgrade reward phase with 3 generated options.
+    /// </summary>
+    private static GameState TransitionToUpgradeReward(GameState state, Random rng)
+    {
+        var options = GenerateUpgradeOptions(state.PersistentDeck, rng);
+        return state with
+        {
+            GamePhase = GamePhase.UpgradeReward,
+            UpgradeOptions = options
+        };
+    }
+
+    /// <summary>
+    /// Generates 3 upgrade options: Enhance (random card), BonusSpoon (random card), RemoveCard.
+    /// If no eligible cards exist for Enhance or BonusSpoon, those options are omitted.
+    /// </summary>
+    public static List<UpgradeOption> GenerateUpgradeOptions(IReadOnlyList<Card> persistentDeck, Random rng)
+    {
+        var options = new List<UpgradeOption>();
+
+        // Enhance: pick a random non-enhanced card
+        var enhanceable = persistentDeck.Where(c => !c.Enhanced).ToList();
+        if (enhanceable.Count > 0)
+        {
+            var target = enhanceable[rng.Next(enhanceable.Count)];
+            options.Add(new UpgradeOption { Type = UpgradeType.Enhance, TargetCard = target });
+        }
+
+        // BonusSpoon: pick a random card without bonus spoon
+        var bonusable = persistentDeck.Where(c => !c.BonusSpoon).ToList();
+        if (bonusable.Count > 0)
+        {
+            var target = bonusable[rng.Next(bonusable.Count)];
+            options.Add(new UpgradeOption { Type = UpgradeType.BonusSpoon, TargetCard = target });
+        }
+
+        // RemoveCard: always available (player picks which card)
+        options.Add(new UpgradeOption { Type = UpgradeType.RemoveCard });
+
+        return options;
+    }
+
+    /// <summary>
+    /// Player selects an upgrade option. For RemoveCard, cardToRemove must be provided.
+    /// </summary>
+    public static GameState SelectUpgrade(GameState state, UpgradeOption selected, Random rng, Card? cardToRemove = null)
+    {
+        var deck = state.PersistentDeck.ToList();
+
+        switch (selected.Type)
+        {
+            case UpgradeType.Enhance:
+            {
+                var idx = deck.FindIndex(c => c.Id == selected.TargetCard!.Id);
+                if (idx >= 0)
+                    deck[idx] = deck[idx] with { Enhanced = true };
+                break;
+            }
+            case UpgradeType.BonusSpoon:
+            {
+                var idx = deck.FindIndex(c => c.Id == selected.TargetCard!.Id);
+                if (idx >= 0)
+                    deck[idx] = deck[idx] with { BonusSpoon = true };
+                break;
+            }
+            case UpgradeType.RemoveCard:
+            {
+                if (cardToRemove != null)
+                    deck.RemoveAll(c => c.Id == cardToRemove.Id);
+                break;
+            }
+        }
+
+        state = state with
+        {
+            PersistentDeck = deck,
+            UpgradeOptions = null
+        };
+
+        return AdvanceToNextFloor(state, rng);
+    }
+
+    /// <summary>
+    /// Player skips the upgrade reward.
+    /// </summary>
+    public static GameState SkipUpgrade(GameState state, Random rng)
+    {
+        state = state with { UpgradeOptions = null };
         return AdvanceToNextFloor(state, rng);
     }
 
@@ -125,7 +253,12 @@ public static class CampaignSystem
             PersistentDeck = state.PersistentDeck,
             CurrentLevelId = nextLevel.LevelId,
             GamePhase = GamePhase.Playing,
-            Copper = state.Copper
+            Copper = state.Copper,
+            // Reset per-floor status effects
+            AcceptHelpDiscount = false,
+            DistractionStacks = 0,
+            ExcusesStacks = 0,
+            ComplaintsStacks = 0
         };
     }
 
@@ -147,6 +280,14 @@ public static class CampaignSystem
             TurnNumber = 1
         };
 
-        return DeckSystem.DrawCards(state, 5, rng);
+        state = DeckSystem.DrawCards(state, 5, rng);
+
+        // Initial rival reveal
+        for (var i = 0; i < config.InitialRivalReveal; i++)
+        {
+            state = TurnSystem.ExecuteRivalTurn(state, rng);
+        }
+
+        return state;
     }
 }

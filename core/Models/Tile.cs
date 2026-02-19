@@ -9,6 +9,8 @@ public record Tile
     public int AdjacencyCount { get; init; }
     public TileAnnotations Annotations { get; init; } = new();
     public SpecialTileType? SpecialTile { get; init; }
+    public bool IsDestroyed { get; init; }
+    public bool ProtectedByExcuses { get; init; }
 
     public bool IsDirty => SpecialTile == SpecialTileType.ExtraDirty;
 }

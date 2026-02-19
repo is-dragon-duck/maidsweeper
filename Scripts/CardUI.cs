@@ -5,7 +5,8 @@ namespace Maidsweeper.Scripts;
 
 /// <summary>
 /// Visual representation of a single card in the hand.
-/// Draws card background, name, cost badge, and description.
+/// Draws card background, name, cost badge, description,
+/// and upgrade indicators (Enhanced, BonusSpoon).
 /// </summary>
 public partial class CardUI : Control
 {
@@ -16,12 +17,17 @@ public partial class CardUI : Control
 
     private static readonly Color CardBg = new(0.95f, 0.92f, 0.85f);
     private static readonly Color CardBgDimmed = new(0.7f, 0.68f, 0.65f);
+    private static readonly Color CardBgMollify = new(0.95f, 0.82f, 0.82f);
+    private static readonly Color CardBgMollifyDimmed = new(0.75f, 0.62f, 0.62f);
     private static readonly Color CardBorder = new(0.4f, 0.35f, 0.3f);
     private static readonly Color CardBorderSelected = new(0.9f, 0.7f, 0.1f);
+    private static readonly Color CardBorderEnhanced = new(0.85f, 0.7f, 0.15f);
     private static readonly Color CostBadgeBg = new(0.2f, 0.4f, 0.7f);
     private static readonly Color TextColor = new(0.15f, 0.15f, 0.15f);
     private static readonly Color TextDimmed = new(0.5f, 0.5f, 0.5f);
     private static readonly Color ExhaustColor = new(0.6f, 0.2f, 0.2f);
+    private static readonly Color EnhancedColor = new(0.85f, 0.7f, 0.15f);
+    private static readonly Color BonusSpoonColor = new(0.3f, 0.7f, 0.4f);
 
     private Card _card = null!;
     private bool _affordable = true;
@@ -42,13 +48,32 @@ public partial class CardUI : Control
     {
         var rect = new Rect2(Vector2.Zero, CardSize);
 
-        // Background
-        var bg = _affordable ? CardBg : CardBgDimmed;
+        // Background (red tint for Mollify)
+        Color bg;
+        if (_card.EffectType == CardEffectType.Mollify)
+            bg = _affordable ? CardBgMollify : CardBgMollifyDimmed;
+        else
+            bg = _affordable ? CardBg : CardBgDimmed;
         DrawRect(rect, bg);
 
-        // Border (thicker if selected or hovered)
-        var borderColor = _selected ? CardBorderSelected : CardBorder;
-        var borderWidth = (_selected || _hovered) ? 3.0f : 1.0f;
+        // Border: gold+thick for enhanced, yellow for selected, default otherwise
+        Color borderColor;
+        float borderWidth;
+        if (_card.Enhanced)
+        {
+            borderColor = _selected ? CardBorderSelected : CardBorderEnhanced;
+            borderWidth = 3.0f;
+        }
+        else if (_selected || _hovered)
+        {
+            borderColor = _selected ? CardBorderSelected : CardBorder;
+            borderWidth = 3.0f;
+        }
+        else
+        {
+            borderColor = CardBorder;
+            borderWidth = 1.0f;
+        }
         DrawRect(rect, borderColor, false, borderWidth);
 
         var font = ThemeDB.FallbackFont;
@@ -61,6 +86,13 @@ public partial class CardUI : Control
         var costSize = font.GetStringSize(costText, fontSize: 16);
         DrawString(font, badgeCenter - new Vector2(costSize.X / 2, -5), costText,
             fontSize: 16, modulate: Colors.White);
+
+        // Enhanced indicator: "E+" top-right corner
+        if (_card.Enhanced)
+        {
+            DrawString(font, new Vector2(CardSize.X - 24, 14), "E+",
+                fontSize: 11, modulate: EnhancedColor);
+        }
 
         // Card name (centered, below badge)
         var nameSize = font.GetStringSize(_card.Name, fontSize: 12);
@@ -78,11 +110,20 @@ public partial class CardUI : Control
             if (lineY > CardSize.Y - 20) break;
         }
 
-        // Exhaust indicator at bottom
+        // Bottom row: Exhaust indicator (left) and BonusSpoon indicator (right)
         if (_card.Exhaust)
         {
             DrawString(font, new Vector2(6, CardSize.Y - 8), "Exhaust",
                 fontSize: 10, modulate: ExhaustColor);
+        }
+
+        // BonusSpoon indicator: small green circle bottom-right
+        if (_card.BonusSpoon)
+        {
+            var spoonCenter = new Vector2(CardSize.X - 14, CardSize.Y - 14);
+            DrawCircle(spoonCenter, 6, BonusSpoonColor);
+            DrawString(font, spoonCenter - new Vector2(3, -3), "S",
+                fontSize: 8, modulate: Colors.White);
         }
     }
 

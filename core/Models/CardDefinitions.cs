@@ -109,6 +109,121 @@ public static class CardDefinitions
         EffectType = CardEffectType.Rendezvous
     };
 
+    // --- Stage 3 Reward Cards ---
+
+    public static Card Argue => new()
+    {
+        Id = "",
+        Name = "Argue",
+        Description = "Target a 3x3 area. Annotate neutrals; mark the rest as not neutral.",
+        Cost = 1,
+        EffectType = CardEffectType.Argue
+    };
+
+    public static Card AcceptHelp => new()
+    {
+        Id = "",
+        Name = "Accept Help",
+        Description = "Target a cross area. Reveal the safest tiles. Future Accept Helps cost 0 this floor.",
+        Cost = 3,
+        EffectType = CardEffectType.AcceptHelp
+    };
+
+    public static Card Eavesdrop => new()
+    {
+        Id = "",
+        Name = "Eavesdrop",
+        Description = "Target a tile. Learn if it's yours without revealing. Get player adjacency info.",
+        Cost = 1,
+        EffectType = CardEffectType.Eavesdrop
+    };
+
+    public static Card Peek => new()
+    {
+        Id = "",
+        Name = "Peek",
+        Description = "Target a cross area. Find nobles. Exhaust only if nobles found.",
+        Cost = 0,
+        EffectType = CardEffectType.Peek
+    };
+
+    public static Card Explode => new()
+    {
+        Id = "",
+        Name = "Explode",
+        Description = "Destroy a tile. Gain 1 Complaint and a Mollify card.",
+        Cost = 1,
+        EffectType = CardEffectType.Explode
+    };
+
+    public static Card Deliver => new()
+    {
+        Id = "",
+        Name = "Deliver",
+        Description = "Target a tile. If noble, convert to neutral and reveal safely. Gain 2 copper.",
+        Cost = 1,
+        EffectType = CardEffectType.Deliver
+    };
+
+    public static Card Brat => new()
+    {
+        Id = "",
+        Name = "Brat",
+        Description = "Target a revealed tile. Unreveal it.",
+        Cost = 1,
+        Exhaust = true,
+        EffectType = CardEffectType.Brat
+    };
+
+    public static Card Ramble => new()
+    {
+        Id = "",
+        Name = "Ramble",
+        Description = "Add 2 Distraction stacks to the rival.",
+        Cost = 1,
+        EffectType = CardEffectType.Ramble
+    };
+
+    public static Card Glaze => new()
+    {
+        Id = "",
+        Name = "Glaze",
+        Description = "Gain 1 Excuses stack. Protects against the next noble reveal.",
+        Cost = 0,
+        Exhaust = true,
+        EffectType = CardEffectType.Glaze
+    };
+
+    public static Card Mask => new()
+    {
+        Id = "",
+        Name = "Mask",
+        Description = "Play another card from your hand for free. Exhaust both.",
+        Cost = 0,
+        Exhaust = true,
+        EffectType = CardEffectType.Mask
+    };
+
+    public static Card Nap => new()
+    {
+        Id = "",
+        Name = "Nap",
+        Description = "Retrieve a card from your exhaust pile.",
+        Cost = 1,
+        Exhaust = true,
+        EffectType = CardEffectType.Nap
+    };
+
+    public static Card Mollify => new()
+    {
+        Id = "",
+        Name = "Mollify",
+        Description = "Reduce Complaints by 1.",
+        Cost = 1,
+        Exhaust = true,
+        EffectType = CardEffectType.Mollify
+    };
+
     /// <summary>
     /// Creates the 10-card starter deck with unique IDs.
     /// 1x Recall - Imperious, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
@@ -138,6 +253,11 @@ public static class CardDefinitions
     /// </summary>
     public static List<Card> CreateRewardPool()
     {
-        return [Brush, Sweep, Caffeinate, Breathe, LockIn, Rendezvous];
+        return
+        [
+            Brush, Sweep, Caffeinate, Breathe, LockIn, Rendezvous,
+            Argue, AcceptHelp, Eavesdrop, Peek, Explode, Deliver,
+            Brat, Ramble, Glaze, Mask, Nap
+        ];
     }
 }

@@ -34,8 +34,11 @@ public static class TurnSystem
     /// </summary>
     public static GameState ExecuteRivalTurn(GameState state, Random rng)
     {
+        // Reset Distraction stacks at start of rival turn (consumed by AI)
+        state = state with { DistractionStacks = 0 };
+
         var rivalTiles = state.Board.Tiles
-            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival)
+            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && !t.IsDestroyed && t.Owner == TileOwner.Rival)
             .ToList();
 
         if (rivalTiles.Count > 0)
@@ -59,16 +62,27 @@ public static class TurnSystem
     {
         var board = state.Board;
 
-        // Check for noble reveal (loss)
-        if (board.Tiles.Any(t => board.IsUsablePosition(t.Position) && t.IsRevealed && t.Owner == TileOwner.Noble))
+        // Check for noble reveal (loss) — destroyed and Excuses-protected nobles don't count
+        if (board.Tiles.Any(t => board.IsUsablePosition(t.Position) && t.IsRevealed && !t.IsDestroyed
+                                 && t.Owner == TileOwner.Noble && !t.ProtectedByExcuses))
             return GameStatus.Lost;
 
-        // Check if all player tiles revealed (win)
-        var allPlayerRevealed = board.Tiles
-            .Where(t => board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Player)
+        // Check if all rival tiles were destroyed (loss) — only if some existed
+        var rivalTiles = board.Tiles.Where(t => board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Rival).ToList();
+        if (rivalTiles.Count > 0
+            && rivalTiles.Any(t => t.IsDestroyed)
+            && !rivalTiles.Any(t => !t.IsRevealed && !t.IsDestroyed))
+        {
+            return GameStatus.Lost;
+        }
+
+        // Check if all non-destroyed player tiles are revealed (win)
+        // Destroyed player tiles count as "found"
+        var allPlayerDone = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Player && !t.IsDestroyed)
             .All(t => t.IsRevealed);
 
-        if (allPlayerRevealed)
+        if (allPlayerDone)
             return GameStatus.Won;
 
         return GameStatus.Playing;

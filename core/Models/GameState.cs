@@ -14,9 +14,27 @@ public record GameState
     public int TurnNumber { get; init; } = 1;
     public int Copper { get; init; }
 
+    // Status effects (per-floor)
+    public int ComplaintsStacks { get; init; }
+    public bool AcceptHelpDiscount { get; init; }
+    public int DistractionStacks { get; init; }
+    public int ExcusesStacks { get; init; }
+
     // Campaign state
     public IReadOnlyList<Card> PersistentDeck { get; init; } = [];
     public string CurrentLevelId { get; init; } = "";
     public GamePhase GamePhase { get; init; } = GamePhase.Playing;
     public IReadOnlyList<Card>? CardRewardOptions { get; init; }
+    public IReadOnlyList<UpgradeOption>? UpgradeOptions { get; init; }
+}
+
+/// <summary>
+/// An upgrade option offered between floors.
+/// Enhance and BonusSpoon have a pre-selected TargetCard.
+/// RemoveCard requires the player to choose which card to remove.
+/// </summary>
+public record UpgradeOption
+{
+    public required UpgradeType Type { get; init; }
+    public Card? TargetCard { get; init; }
 }

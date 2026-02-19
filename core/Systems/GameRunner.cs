@@ -40,6 +40,12 @@ public static class GameRunner
         // Draw initial hand of 5
         state = DeckSystem.DrawCards(state, 5, rng);
 
+        // Initial rival reveal (some floors start with rival tiles pre-revealed)
+        for (var i = 0; i < config.InitialRivalReveal; i++)
+        {
+            state = TurnSystem.ExecuteRivalTurn(state, rng);
+        }
+
         return state;
     }
 
@@ -73,6 +79,9 @@ public static class GameRunner
             return new ActionResult { State = state, TurnEnded = true };
         }
 
+        // Consume Excuses if a noble was revealed
+        state = ConsumeExcusesIfNeeded(state);
+
         // Check game status
         var status = TurnSystem.CheckGameStatus(state);
         state = state with { GameStatus = status };
@@ -83,7 +92,7 @@ public static class GameRunner
         }
 
         // Check if turn should end (non-player tile revealed)
-        var revealedTile = newBoard.GetTile(pos);
+        var revealedTile = state.Board.GetTile(pos);
         var turnEnded = TurnSystem.ShouldEndTurn(revealedTile);
 
         if (turnEnded)
@@ -107,9 +116,13 @@ public static class GameRunner
         if (state.GameStatus != GameStatus.Playing)
             throw new InvalidOperationException("Game is not in progress");
 
+        var boardBefore = state.Board;
         state = CardEffectSystem.PlayCard(state, card, targets, rng);
 
-        // Check game status (Scurry can reveal tiles, potentially hitting a noble)
+        // Consume Excuses if any noble was revealed by the card
+        state = ConsumeExcusesIfNeeded(state);
+
+        // Check game status
         var status = TurnSystem.CheckGameStatus(state);
         state = state with { GameStatus = status };
 
@@ -118,16 +131,15 @@ public static class GameRunner
             return new ActionResult { State = state, TurnEnded = true };
         }
 
-        // Check if a Scurry reveal ended the turn
-        // Scurry reveals a tile — if it was non-player, turn should end
+        // Check if a revealing card ended the turn (newly revealed non-Player tile)
         var turnEnded = false;
-        if (card.EffectType == CardEffectType.Scurry && targets != null)
+        if (card.EffectType == CardEffectType.Scurry || card.EffectType == CardEffectType.AcceptHelp)
         {
-            // Check which target was revealed by Scurry
-            foreach (var target in targets)
+            foreach (var tile in state.Board.Tiles)
             {
-                var tile = state.Board.GetTile(target);
-                if (tile.IsRevealed && tile.RevealedBy == PlayerType.Player && TurnSystem.ShouldEndTurn(tile))
+                if (!state.Board.IsUsablePosition(tile.Position)) continue;
+                var before = boardBefore.GetTile(tile.Position);
+                if (!before.IsRevealed && tile.IsRevealed && TurnSystem.ShouldEndTurn(tile))
                 {
                     turnEnded = true;
                     break;
@@ -157,6 +169,42 @@ public static class GameRunner
         state = ProcessTurnTransition(state, rng);
 
         return new ActionResult { State = state, TurnEnded = true };
+    }
+
+    /// <summary>
+    /// Consumes Excuses stacks for any newly revealed noble tiles.
+    /// Marks protected nobles so CheckGameStatus won't treat them as losses.
+    /// </summary>
+    private static GameState ConsumeExcusesIfNeeded(GameState state)
+    {
+        if (state.ExcusesStacks <= 0)
+            return state;
+
+        var board = state.Board;
+        var newTiles = board.Tiles.ToList();
+        var excusesLeft = state.ExcusesStacks;
+        var changed = false;
+
+        for (var i = 0; i < newTiles.Count; i++)
+        {
+            var tile = newTiles[i];
+            if (board.IsUsablePosition(tile.Position) && tile.IsRevealed && !tile.IsDestroyed
+                && tile.Owner == TileOwner.Noble && !tile.ProtectedByExcuses
+                && excusesLeft > 0)
+            {
+                newTiles[i] = tile with { ProtectedByExcuses = true };
+                excusesLeft--;
+                changed = true;
+            }
+        }
+
+        if (!changed) return state;
+
+        return state with
+        {
+            Board = board with { Tiles = newTiles },
+            ExcusesStacks = excusesLeft
+        };
     }
 
     /// <summary>

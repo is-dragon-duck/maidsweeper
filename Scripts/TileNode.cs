@@ -19,6 +19,8 @@ public partial class TileNode : Control
 	private Position _position;
 	private bool _isRevealed;
 	private bool _isUnused;
+	private bool _isDestroyed;
+	private bool _isTargetValid;
 
 	public Position TilePosition => _position;
 
@@ -32,14 +34,18 @@ public partial class TileNode : Control
 
 	public override void _GuiInput(InputEvent @event)
 	{
-		if (_isUnused) return;
+		if (_isUnused || _isDestroyed) return;
 
 		if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
 		{
-			if (mouseEvent.ButtonIndex == MouseButton.Left && !_isRevealed)
+			if (mouseEvent.ButtonIndex == MouseButton.Left)
 			{
-				EmitSignal(SignalName.TileClicked, _position.Row, _position.Col);
-				AcceptEvent();
+				// Allow click if unrevealed (normal) or if targeting mode marks this as valid (Brat)
+				if (!_isRevealed || _isTargetValid)
+				{
+					EmitSignal(SignalName.TileClicked, _position.Row, _position.Col);
+					AcceptEvent();
+				}
 			}
 			else if (mouseEvent.ButtonIndex == MouseButton.Right)
 			{
@@ -63,11 +69,21 @@ public partial class TileNode : Control
 	public void UpdateFromTile(Tile tile, List<string> globalClueOrder)
 	{
 		_isRevealed = tile.IsRevealed;
+		_isDestroyed = tile.IsDestroyed;
 		_view.UpdateVisual(tile, globalClueOrder);
 	}
 
-	public void SetTargetValid(bool valid) => _view.SetTargetValid(valid);
+	public void SetTargetValid(bool valid)
+	{
+		_isTargetValid = valid;
+		_view.SetTargetValid(valid);
+	}
+
 	public void SetTargetSelected(bool selected) => _view.SetTargetSelected(selected);
 	public void SetAreaPreview(bool preview) => _view.SetAreaPreview(preview);
-	public void ClearTargetingState() => _view.ClearTargetingState();
+	public void ClearTargetingState()
+	{
+		_isTargetValid = false;
+		_view.ClearTargetingState();
+	}
 }
