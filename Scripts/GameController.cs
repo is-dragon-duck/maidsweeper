@@ -43,6 +43,16 @@ public partial class GameController : MarginContainer
 
     public override void _Ready()
     {
+        // Set a dark navy/charcoal background distinct from tile colors
+        var bg = new ColorRect
+        {
+            Color = new Color(0.12f, 0.12f, 0.15f)
+        };
+        bg.SetAnchorsPreset(LayoutPreset.FullRect);
+        bg.MouseFilter = MouseFilterEnum.Ignore;
+        AddChild(bg);
+        MoveChild(bg, 0); // Behind everything
+
         _boardNode = GetNode<BoardNode>("Layout/TopArea/BoardMargin/Board");
         _handDisplay = GetNode<HandDisplay>("Layout/HandPanel/HandDisplay");
         _hud = GetNode<HUD>("Layout/TopArea/HUD");
@@ -52,8 +62,11 @@ public partial class GameController : MarginContainer
 
         _boardNode.TileClicked += OnTileClicked;
         _boardNode.TileRightClicked += OnTileRightClicked;
+        _boardNode.TileHovered += OnTileHovered;
+        _boardNode.TileUnhovered += OnTileUnhovered;
         _handDisplay.CardClicked += OnCardClicked;
         _hud.EndTurnPressed += OnEndTurnPressed;
+        _hud.AnnotationTypeChanged += OnAnnotationTypeChanged;
         _cancelButton.Pressed += OnCancelTargeting;
 
         CreateOverlay();
@@ -81,6 +94,157 @@ public partial class GameController : MarginContainer
             CancelTargeting();
             GetViewport().SetInputAsHandled();
         }
+        else if (@event is InputEventKey { Pressed: true, Keycode: Key.F2 })
+        {
+            ToggleDebugCardPicker();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    // Debug card picker
+    private ColorRect _debugOverlay = null!;
+    private int _debugCardIdCounter;
+
+    private void ToggleDebugCardPicker()
+    {
+        if (_state.GameStatus != GameStatus.Playing) return;
+
+        if (_debugOverlay != null && _debugOverlay.Visible)
+        {
+            _debugOverlay.Visible = false;
+            return;
+        }
+
+        ShowDebugCardPicker();
+    }
+
+    private void ShowDebugCardPicker()
+    {
+        // Remove previous debug overlay if it exists
+        if (_debugOverlay != null)
+        {
+            _debugOverlay.QueueFree();
+            _debugOverlay = null!;
+        }
+
+        // Dim background
+        _debugOverlay = new ColorRect
+        {
+            Color = new Color(0, 0, 0, 0.6f),
+            Visible = true
+        };
+        _debugOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
+        _debugOverlay.MouseFilter = MouseFilterEnum.Stop;
+        AddChild(_debugOverlay);
+
+        // Center container
+        var center = new CenterContainer();
+        center.SetAnchorsPreset(LayoutPreset.FullRect);
+        center.MouseFilter = MouseFilterEnum.Ignore;
+        _debugOverlay.AddChild(center);
+
+        // Panel
+        var panelStyle = new StyleBoxFlat
+        {
+            BgColor = new Color(0.1f, 0.1f, 0.13f, 0.95f),
+            ContentMarginLeft = 20,
+            ContentMarginRight = 20,
+            ContentMarginTop = 16,
+            ContentMarginBottom = 16,
+            CornerRadiusBottomLeft = 8,
+            CornerRadiusBottomRight = 8,
+            CornerRadiusTopLeft = 8,
+            CornerRadiusTopRight = 8
+        };
+        var panel = new PanelContainer();
+        panel.AddThemeStyleboxOverride("panel", panelStyle);
+        panel.CustomMinimumSize = new Vector2(360, 500);
+        center.AddChild(panel);
+
+        var outerVBox = new VBoxContainer();
+        outerVBox.AddThemeConstantOverride("separation", 8);
+        panel.AddChild(outerVBox);
+
+        // Title
+        var title = new Label
+        {
+            Text = "Debug: Add Card to Hand",
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        title.AddThemeFontSizeOverride("font_size", 18);
+        outerVBox.AddChild(title);
+
+        // Upgrade checkboxes row
+        var checkRow = new HBoxContainer();
+        checkRow.AddThemeConstantOverride("separation", 16);
+        checkRow.Alignment = BoxContainer.AlignmentMode.Center;
+        outerVBox.AddChild(checkRow);
+
+        var enhancedCheck = new CheckBox { Text = "Enhanced" };
+        checkRow.AddChild(enhancedCheck);
+
+        var bonusSpoonCheck = new CheckBox { Text = "Bonus Spoon" };
+        checkRow.AddChild(bonusSpoonCheck);
+
+        // Spoons refill button
+        var spoonButton = new Button { Text = "Refill Spoons (10)" };
+        spoonButton.Pressed += () =>
+        {
+            _state = _state with { Spoons = 10, MaxSpoons = 10 };
+            RefreshUI();
+        };
+        outerVBox.AddChild(spoonButton);
+
+        // Scrollable card list
+        var scroll = new ScrollContainer
+        {
+            CustomMinimumSize = new Vector2(320, 360),
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+        outerVBox.AddChild(scroll);
+
+        var cardList = new VBoxContainer();
+        cardList.AddThemeConstantOverride("separation", 4);
+        cardList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        scroll.AddChild(cardList);
+
+        // All unique card templates
+        var allCards = CardDefinitions.CreateRewardPool()
+            .Concat(CardDefinitions.CreateStarterDeck())
+            .GroupBy(c => c.Name)
+            .Select(g => g.First())
+            .OrderBy(c => c.Name)
+            .ToList();
+
+        foreach (var template in allCards)
+        {
+            var btn = new Button
+            {
+                Text = $"{template.Name} ({template.Cost})",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill
+            };
+            var cardTemplate = template; // capture for closure
+            btn.Pressed += () =>
+            {
+                var card = cardTemplate with
+                {
+                    Id = $"debug_{_debugCardIdCounter++}",
+                    Enhanced = enhancedCheck.ButtonPressed,
+                    BonusSpoon = bonusSpoonCheck.ButtonPressed
+                };
+                _state = _state with
+                {
+                    Hand = _state.Hand.Concat([card]).ToList()
+                };
+                RefreshUI();
+            };
+            cardList.AddChild(btn);
+        }
+
+        // Close button
+        var closeBtn = new Button { Text = "Close" };
+        closeBtn.Pressed += () => _debugOverlay.Visible = false;
+        outerVBox.AddChild(closeBtn);
     }
 
     private void CreateOverlay()
@@ -193,7 +357,9 @@ public partial class GameController : MarginContainer
             }
         }
 
-        _boardNode.UpdateBoard(_state.Board, _globalClueOrder);
+        // Pass viewing perspective for crossout on tiles that can't be the selected owner
+        TileOwner? perspective = _hud.SelectedAnnotationType;
+        _boardNode.UpdateBoard(_state.Board, _globalClueOrder, perspective);
         _handDisplay.UpdateHand(_state);
         _hud.UpdateFromState(_state);
         UpdateTargetingUI();
@@ -561,6 +727,44 @@ public partial class GameController : MarginContainer
         }
     }
 
+    private void OnTileHovered(int row, int col)
+    {
+        if (!_targeting.IsTargeting || _targeting.Mode != TargetingMode.TileTarget) return;
+
+        var activeEffect = _targeting.GetActiveEffectType();
+        var activeCard = _targeting.MaskSelectedCard ?? _targeting.TargetCard;
+        var pos = new Position(row, col);
+
+        var areaRadius = TargetingController.GetAreaRadius(activeEffect);
+        if (areaRadius > 0)
+        {
+            // Enhanced Peek uses 3x3 area instead of cross
+            if (activeEffect == CardEffectType.Peek && activeCard is { Enhanced: true })
+                areaRadius = 1;
+            _boardNode.SetAreaHighlight(pos, areaRadius, _state.Board);
+        }
+        else if (TargetingController.UsesCrossArea(activeEffect))
+        {
+            // Enhanced Peek is handled above as area
+            if (activeEffect == CardEffectType.Peek && activeCard is { Enhanced: true })
+                _boardNode.SetAreaHighlight(pos, 1, _state.Board);
+            else
+                _boardNode.SetCrossHighlight(pos, _state.Board);
+        }
+    }
+
+    private void OnTileUnhovered(int row, int col)
+    {
+        if (!_targeting.IsTargeting) return;
+        _boardNode.ClearAreaHighlight();
+    }
+
+    private void OnAnnotationTypeChanged(int ownerIndex)
+    {
+        // Refresh board to update perspective crossouts
+        RefreshUI();
+    }
+
     private void OnTileRightClicked(int row, int col)
     {
         if (_state.GameStatus != GameStatus.Playing) return;
@@ -571,7 +775,9 @@ public partial class GameController : MarginContainer
         if (tile.IsRevealed || tile.IsDestroyed) return;
         if (!_state.Board.IsUsablePosition(pos)) return;
 
-        _state = AnnotationSystem.ToggleFlag(_state, pos);
+        // Cycle annotation for the currently selected owner type
+        var ownerType = _hud.SelectedAnnotationType;
+        _state = AnnotationSystem.CyclePlayerAnnotation(_state, pos, ownerType);
         RefreshUI();
     }
 

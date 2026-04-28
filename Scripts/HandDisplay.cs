@@ -26,8 +26,9 @@ public partial class HandDisplay : HBoxContainer
         {
             var cardUI = new CardUI();
             AddChild(cardUI);
-            var affordable = state.Spoons >= DeckSystem.GetEffectiveCost(state, card);
-            cardUI.Setup(card, affordable);
+            var effectiveCost = DeckSystem.GetEffectiveCost(state, card);
+            var affordable = state.Spoons >= effectiveCost;
+            cardUI.Setup(card, affordable, effectiveCost);
             cardUI.CardClicked += OnCardClicked;
         }
     }

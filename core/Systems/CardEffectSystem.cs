@@ -810,6 +810,19 @@ public static class CardEffectSystem
                     state = state with { Board = newBoard };
                 }
             }
+
+            // Annotate remaining unrevealed tiles: exclude the safest type
+            var remainingSubset = new HashSet<TileOwner>();
+            foreach (TileOwner owner in Enum.GetValues<TileOwner>())
+            {
+                if (owner != safestType)
+                    remainingSubset.Add(owner);
+            }
+            foreach (var tile in unrevealed)
+            {
+                if (tile.Owner == safestType) continue;
+                state = AnnotationSystem.AddOwnerSubset(state, tile.Position, remainingSubset);
+            }
         }
 
         // Set discount for future Accept Help cards

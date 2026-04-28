@@ -114,6 +114,66 @@ public static class AnnotationSystem
     }
 
     /// <summary>
+    /// Cycles a player annotation on a tile through: no opinion → excluded → confirmed → no opinion.
+    /// Auto-flags the tile if Player is excluded from the effective owner subset.
+    /// </summary>
+    public static GameState CyclePlayerAnnotation(GameState state, Position pos, TileOwner ownerType)
+    {
+        var board = state.Board;
+        var tile = board.GetTile(pos);
+
+        if (tile.IsRevealed)
+            return state;
+
+        var excluded = tile.Annotations.PlayerExcluded != null
+            ? new HashSet<TileOwner>(tile.Annotations.PlayerExcluded)
+            : new HashSet<TileOwner>();
+        var confirmed = tile.Annotations.PlayerConfirmed != null
+            ? new HashSet<TileOwner>(tile.Annotations.PlayerConfirmed)
+            : new HashSet<TileOwner>();
+
+        if (!excluded.Contains(ownerType) && !confirmed.Contains(ownerType))
+        {
+            // No opinion → excluded
+            excluded.Add(ownerType);
+        }
+        else if (excluded.Contains(ownerType))
+        {
+            // Excluded → confirmed
+            excluded.Remove(ownerType);
+            confirmed.Add(ownerType);
+        }
+        else
+        {
+            // Confirmed → no opinion
+            confirmed.Remove(ownerType);
+        }
+
+        var newAnnotations = tile.Annotations with
+        {
+            PlayerExcluded = excluded.Count > 0 ? excluded : null,
+            PlayerConfirmed = confirmed.Count > 0 ? confirmed : null
+        };
+
+        // Auto-flag: if Player is no longer in the effective subset, flag the tile
+        var effective = newAnnotations.EffectiveOwnerSubset;
+        if (effective != null && !effective.Contains(TileOwner.Player))
+        {
+            newAnnotations = newAnnotations with { Flagged = true };
+        }
+        else
+        {
+            newAnnotations = newAnnotations with { Flagged = false };
+        }
+
+        var newTile = tile with { Annotations = newAnnotations };
+        var newTiles = board.Tiles.ToList();
+        newTiles[board.TileIndex(pos)] = newTile;
+
+        return state with { Board = board with { Tiles = newTiles } };
+    }
+
+    /// <summary>
     /// Toggles a player exclusion on a tile. If the owner is already excluded,
     /// removes the exclusion. If not excluded, adds it.
     /// Auto-flags the tile if Player is excluded from the effective owner subset.

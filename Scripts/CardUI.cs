@@ -29,8 +29,12 @@ public partial class CardUI : Control
     private static readonly Color EnhancedColor = new(0.85f, 0.7f, 0.15f);
     private static readonly Color BonusSpoonColor = new(0.3f, 0.7f, 0.4f);
 
+    private static readonly Color DiscountColor = new(0.3f, 0.8f, 0.3f);
+    private static readonly Color StrikethroughColor = new(0.6f, 0.3f, 0.3f);
+
     private Card _card = null!;
     private bool _affordable = true;
+    private int _effectiveCost;
     private bool _selected;
     private bool _hovered;
 
@@ -81,11 +85,25 @@ public partial class CardUI : Control
 
         // Cost badge (top-left circle)
         var badgeCenter = new Vector2(16, 16);
-        DrawCircle(badgeCenter, 12, CostBadgeBg);
-        var costText = _card.Cost.ToString();
+        var isDiscounted = _effectiveCost < _card.Cost;
+        var badgeBg = isDiscounted ? DiscountColor : CostBadgeBg;
+        DrawCircle(badgeCenter, 12, badgeBg);
+
+        var costText = _effectiveCost.ToString();
         var costSize = font.GetStringSize(costText, fontSize: 16);
         DrawString(font, badgeCenter - new Vector2(costSize.X / 2, -5), costText,
             fontSize: 16, modulate: Colors.White);
+
+        // Show original cost struck through if discounted
+        if (isDiscounted)
+        {
+            var origText = _card.Cost.ToString();
+            var origSize = font.GetStringSize(origText, fontSize: 10);
+            var origPos = new Vector2(30, 10);
+            DrawString(font, origPos, origText, fontSize: 10, modulate: StrikethroughColor);
+            // Strikethrough line
+            DrawLine(origPos + new Vector2(-1, -4), origPos + new Vector2(origSize.X + 1, -4), StrikethroughColor, 1.5f);
+        }
 
         // Enhanced indicator: "E+" top-right corner
         if (_card.Enhanced)
@@ -136,10 +154,11 @@ public partial class CardUI : Control
         }
     }
 
-    public void Setup(Card card, bool affordable)
+    public void Setup(Card card, bool affordable, int effectiveCost = -1)
     {
         _card = card;
         _affordable = affordable;
+        _effectiveCost = effectiveCost >= 0 ? effectiveCost : card.Cost;
         _selected = false;
         QueueRedraw();
     }

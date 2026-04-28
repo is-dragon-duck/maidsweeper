@@ -45,6 +45,12 @@ public record TileAnnotations
     public HashSet<TileOwner>? PlayerExcluded { get; init; }
 
     /// <summary>
+    /// Owner types the player has manually confirmed via annotation UI.
+    /// Tracked separately from card-derived OwnerSubset so they don't interfere.
+    /// </summary>
+    public HashSet<TileOwner>? PlayerConfirmed { get; init; }
+
+    /// <summary>
     /// Whether the player has flagged this tile (black slash = "not mine / skip").
     /// Visual aid only — no game logic impact.
     /// </summary>
@@ -58,7 +64,7 @@ public record TileAnnotations
     {
         get
         {
-            if (OwnerSubset == null && PlayerExcluded == null)
+            if (OwnerSubset == null && PlayerExcluded == null && PlayerConfirmed == null)
                 return null;
 
             var allOwners = new HashSet<TileOwner>
@@ -68,6 +74,10 @@ public record TileAnnotations
 
             if (PlayerExcluded != null)
                 result.ExceptWith(PlayerExcluded);
+
+            // If player has confirmed types, intersect with those
+            if (PlayerConfirmed != null && PlayerConfirmed.Count > 0)
+                result.IntersectWith(PlayerConfirmed);
 
             return result;
         }

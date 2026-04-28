@@ -17,7 +17,8 @@ public static class CampaignSystem
         {
             PersistentDeck = starterDeck,
             CurrentLevelId = config.LevelId,
-            GamePhase = GamePhase.Playing
+            GamePhase = GamePhase.Playing,
+            ExcusesStacks = 1
         };
     }
 
@@ -257,7 +258,7 @@ public static class CampaignSystem
             // Reset per-floor status effects
             AcceptHelpDiscount = false,
             DistractionStacks = 0,
-            ExcusesStacks = 0,
+            ExcusesStacks = 1,
             ComplaintsStacks = 0
         };
     }

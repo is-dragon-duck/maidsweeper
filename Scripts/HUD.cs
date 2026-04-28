@@ -13,15 +13,33 @@ public partial class HUD : VBoxContainer
     [Signal]
     public delegate void EndTurnPressedEventHandler();
 
+    [Signal]
+    public delegate void AnnotationTypeChangedEventHandler(int ownerIndex);
+
     private Label _spoonsLabel = null!;
     private Label _deckLabel = null!;
     private Label _turnLabel = null!;
-    private Label _tileCountsLabel = null!;
     private Label _statusLabel = null!;
     private Label _copperLabel = null!;
     private Label _floorLabel = null!;
     private Label _statusEffectsLabel = null!;
     private Button _endTurnButton = null!;
+
+    // Annotation type selection buttons
+    private HBoxContainer _annotationButtonsRow = null!;
+    private Button[] _annotationButtons = new Button[4];
+    private Label[] _annotationCountLabels = new Label[4];
+    private TileOwner _selectedAnnotationType = TileOwner.Player;
+
+    public TileOwner SelectedAnnotationType => _selectedAnnotationType;
+
+    private static readonly Color[] AnnotationButtonColors =
+    [
+        new(1.0f, 0.55f, 0.65f),   // Player - pink
+        new(0.45f, 0.65f, 1.0f),   // Rival - blue
+        new(0.85f, 0.85f, 0.85f),  // Neutral - gray
+        new(0.7f, 0.4f, 0.85f),    // Noble - purple
+    ];
 
     public override void _Ready()
     {
@@ -61,8 +79,65 @@ public partial class HUD : VBoxContainer
 
         AddChild(new HSeparator());
 
-        _tileCountsLabel = new Label { Text = "" };
-        AddChild(_tileCountsLabel);
+        // Annotation type selection: colored square buttons with counts
+        var annotationLabel = new Label { Text = "Annotate:" };
+        annotationLabel.AddThemeFontSizeOverride("font_size", 12);
+        AddChild(annotationLabel);
+
+        _annotationButtonsRow = new HBoxContainer();
+        _annotationButtonsRow.AddThemeConstantOverride("separation", 4);
+        AddChild(_annotationButtonsRow);
+
+        var ownerNames = new[] { "P", "R", "N", "X" };
+        for (var i = 0; i < 4; i++)
+        {
+            var vbox = new VBoxContainer();
+            vbox.AddThemeConstantOverride("separation", 2);
+
+            var btn = new Button
+            {
+                CustomMinimumSize = new Vector2(40, 40),
+                Text = ownerNames[i],
+                ToggleMode = true,
+                ButtonPressed = i == 0 // Player selected by default
+            };
+
+            var style = new StyleBoxFlat
+            {
+                BgColor = AnnotationButtonColors[i].Darkened(0.3f),
+                ContentMarginLeft = 4, ContentMarginRight = 4,
+                ContentMarginTop = 4, ContentMarginBottom = 4
+            };
+            btn.AddThemeStyleboxOverride("normal", style);
+
+            var pressedStyle = new StyleBoxFlat
+            {
+                BgColor = AnnotationButtonColors[i],
+                ContentMarginLeft = 4, ContentMarginRight = 4,
+                ContentMarginTop = 4, ContentMarginBottom = 4,
+                BorderWidthBottom = 3, BorderWidthTop = 3,
+                BorderWidthLeft = 3, BorderWidthRight = 3,
+                BorderColor = Colors.White
+            };
+            btn.AddThemeStyleboxOverride("pressed", pressedStyle);
+
+            var capturedIndex = i;
+            btn.Pressed += () => OnAnnotationButtonPressed(capturedIndex);
+            _annotationButtons[i] = btn;
+            vbox.AddChild(btn);
+
+            var countLabel = new Label
+            {
+                Text = "0",
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            countLabel.AddThemeFontSizeOverride("font_size", 11);
+            countLabel.AddThemeColorOverride("font_color", AnnotationButtonColors[i]);
+            _annotationCountLabels[i] = countLabel;
+            vbox.AddChild(countLabel);
+
+            _annotationButtonsRow.AddChild(vbox);
+        }
 
         AddChild(new HSeparator());
 
@@ -84,30 +159,20 @@ public partial class HUD : VBoxContainer
 
         // Tile counts (unrevealed only, excluding unused and destroyed)
         var unrevealed = new int[4]; // Player, Rival, Neutral, Noble
-        var destroyedCount = 0;
         foreach (var tile in state.Board.Tiles)
         {
             if (!state.Board.IsUsablePosition(tile.Position)) continue;
-            if (tile.IsDestroyed)
-            {
-                destroyedCount++;
-                continue;
-            }
+            if (tile.IsDestroyed) continue;
             if (!tile.IsRevealed)
             {
                 unrevealed[(int)tile.Owner]++;
             }
         }
 
-        var tileText =
-            $"Unrevealed Tiles:\n" +
-            $"  Player: {unrevealed[(int)TileOwner.Player]}\n" +
-            $"  Rival: {unrevealed[(int)TileOwner.Rival]}\n" +
-            $"  Neutral: {unrevealed[(int)TileOwner.Neutral]}\n" +
-            $"  Noble: {unrevealed[(int)TileOwner.Noble]}";
-        if (destroyedCount > 0)
-            tileText += $"\n  Destroyed: {destroyedCount}";
-        _tileCountsLabel.Text = tileText;
+        for (var i = 0; i < 4; i++)
+        {
+            _annotationCountLabels[i].Text = unrevealed[i].ToString();
+        }
 
         // Status effects (only show non-zero)
         var effects = new System.Collections.Generic.List<string>();
@@ -133,6 +198,19 @@ public partial class HUD : VBoxContainer
         // Disable End Turn when game over or not player's turn
         _endTurnButton.Disabled = state.GameStatus != GameStatus.Playing
             || state.CurrentPlayer != PlayerType.Player;
+    }
+
+    private void OnAnnotationButtonPressed(int index)
+    {
+        _selectedAnnotationType = (TileOwner)index;
+
+        // Update toggle state: only the pressed one is active
+        for (var i = 0; i < 4; i++)
+        {
+            _annotationButtons[i].SetPressedNoSignal(i == index);
+        }
+
+        EmitSignal(SignalName.AnnotationTypeChanged, index);
     }
 
     public static int GetFloorNumber(string levelId)

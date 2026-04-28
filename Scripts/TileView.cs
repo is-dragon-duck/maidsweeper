@@ -9,6 +9,7 @@ namespace Maidsweeper.Scripts;
 /// Handles all visual rendering for a single tile.
 /// Colors, adjacency numbers, hover effects, annotations, clue pips,
 /// flag icon, adjacency info, and destroyed tile visuals.
+/// Shape code: Player=square, Rival=circle, Neutral=diamond, Noble=octagon.
 /// </summary>
 public partial class TileView : Control
 {
@@ -21,35 +22,35 @@ public partial class TileView : Control
     private static readonly Color NobleColor = new(0.8f, 0.6f, 0.9f);
     private static readonly Color DestroyedColor = new(0.12f, 0.12f, 0.12f);
 
-    // Adjacency number colors: tinted to indicate whose perspective
-    private static readonly Color PlayerAdjColor = new(0.6f, 0.1f, 0.2f);  // dark pink
-    private static readonly Color RivalAdjColor = new(0.1f, 0.2f, 0.6f);   // dark blue
-
     // Targeting mode colors
     private static readonly Color TargetValidColor = new(0.35f, 0.45f, 0.35f);
     private static readonly Color TargetSelectedColor = new(0.9f, 0.8f, 0.2f);
     private static readonly Color TargetBorderColor = new(0.2f, 0.8f, 0.2f);
     private static readonly Color AreaPreviewColor = new(0.4f, 0.5f, 0.4f, 0.6f);
 
-    // Owner grid colors (used in the 2x2 annotation grid)
+    // Owner shape fill colors (saturated, for annotation grids)
     private static readonly Color OwnerGridPlayer = new(1.0f, 0.55f, 0.65f);   // saturated pink
     private static readonly Color OwnerGridRival = new(0.45f, 0.65f, 1.0f);    // saturated blue
     private static readonly Color OwnerGridNeutral = new(0.85f, 0.85f, 0.85f); // light gray
     private static readonly Color OwnerGridNoble = new(0.7f, 0.4f, 0.85f);     // saturated purple
 
-    // Pip colors — one per clue cast, cycling
-    private static readonly Color[] PipColors =
-    [
-        new(0.95f, 0.7f, 0.1f),   // gold
-        new(0.3f, 0.7f, 0.95f),   // sky blue
-        new(0.9f, 0.4f, 0.7f),    // pink
-        new(0.5f, 0.9f, 0.4f),    // lime
-        new(0.7f, 0.5f, 0.9f),    // lavender
-        new(0.95f, 0.5f, 0.2f),   // orange
-    ];
+    // Adjacency badge background colors (lighter, for shape backgrounds behind numbers)
+    private static readonly Color PlayerBadgeBg = new(1.0f, 0.85f, 0.88f);
+    private static readonly Color RivalBadgeBg = new(0.82f, 0.88f, 1.0f);
+    private static readonly Color NeutralBadgeBg = new(1.0f, 1.0f, 1.0f);
+    private static readonly Color NobleBadgeBg = new(0.88f, 0.75f, 0.95f);
 
-    // Flag color
-    private static readonly Color FlagColor = new(0.9f, 0.3f, 0.3f);
+    // Adjacency badge text colors (darker)
+    private static readonly Color PlayerAdjColor = new(0.6f, 0.1f, 0.2f);  // dark pink
+    private static readonly Color RivalAdjColor = new(0.1f, 0.2f, 0.6f);   // dark blue
+    private static readonly Color NeutralAdjColor = new(0.1f, 0.1f, 0.1f); // black
+    private static readonly Color NobleAdjColor = new(0.4f, 0.15f, 0.5f);  // dark purple
+
+    // Single pip color for all Recall clues
+    private static readonly Color PipColor = new(0.95f, 0.7f, 0.1f); // gold
+
+    // Annotation marker colors
+    private static readonly Color ExcludedMarkColor = new(0.9f, 0.3f, 0.3f);    // red crossout
 
     private bool _isRevealed;
     private TileOwner _owner;
@@ -64,10 +65,121 @@ public partial class TileView : Control
     private bool _isDestroyed;
     private TileAnnotations _annotations = new();
     private List<string> _globalClueOrder = [];
+    private TileOwner? _viewingPerspective;
+
+    // Track previous adjacency for Brat un-reveal (dimmed display)
+    private int? _previousAdjacencyCount;
+    private PlayerType? _previousRevealedBy;
+
+    // ───────────────────────────────────────────────
+    // Shape drawing primitives
+    // ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws the owner-coded shape (filled) at center with given half-size.
+    /// Player=square, Rival=circle, Neutral=diamond, Noble=octagon.
+    /// </summary>
+    private void DrawOwnerShape(Vector2 center, float half, TileOwner owner, Color color)
+    {
+        switch (owner)
+        {
+            case TileOwner.Player:
+                DrawRect(new Rect2(center.X - half, center.Y - half, half * 2, half * 2), color);
+                break;
+            case TileOwner.Rival:
+                DrawCircle(center, half, color);
+                break;
+            case TileOwner.Neutral:
+                DrawPolygon([
+                    new Vector2(center.X, center.Y - half),
+                    new Vector2(center.X + half, center.Y),
+                    new Vector2(center.X, center.Y + half),
+                    new Vector2(center.X - half, center.Y)
+                ], [color]);
+                break;
+            case TileOwner.Noble:
+                var cut = half * 0.38f;
+                DrawPolygon([
+                    new Vector2(center.X - half + cut, center.Y - half),
+                    new Vector2(center.X + half - cut, center.Y - half),
+                    new Vector2(center.X + half, center.Y - half + cut),
+                    new Vector2(center.X + half, center.Y + half - cut),
+                    new Vector2(center.X + half - cut, center.Y + half),
+                    new Vector2(center.X - half + cut, center.Y + half),
+                    new Vector2(center.X - half, center.Y + half - cut),
+                    new Vector2(center.X - half, center.Y - half + cut)
+                ], [color]);
+                break;
+        }
+    }
+
+    private static Color GetOwnerGridColor(TileOwner owner) => owner switch
+    {
+        TileOwner.Player => OwnerGridPlayer,
+        TileOwner.Rival => OwnerGridRival,
+        TileOwner.Neutral => OwnerGridNeutral,
+        TileOwner.Noble => OwnerGridNoble,
+        _ => OwnerGridNeutral
+    };
+
+    private static Color GetBadgeBgColor(TileOwner owner) => owner switch
+    {
+        TileOwner.Player => PlayerBadgeBg,
+        TileOwner.Rival => RivalBadgeBg,
+        TileOwner.Neutral => NeutralBadgeBg,
+        TileOwner.Noble => NobleBadgeBg,
+        _ => NeutralBadgeBg
+    };
+
+    private static Color GetBadgeTextColor(TileOwner owner) => owner switch
+    {
+        TileOwner.Player => PlayerAdjColor,
+        TileOwner.Rival => RivalAdjColor,
+        TileOwner.Neutral => NeutralAdjColor,
+        TileOwner.Noble => NobleAdjColor,
+        _ => NeutralAdjColor
+    };
+
+    /// <summary>
+    /// Maps revealer to the owner type whose neighbors are being counted.
+    /// Player reveals count Player neighbors, Rival reveals count Rival neighbors.
+    /// </summary>
+    private static TileOwner RevealerToOwner(PlayerType? revealedBy) =>
+        revealedBy == PlayerType.Rival ? TileOwner.Rival : TileOwner.Player;
+
+    // ───────────────────────────────────────────────
+    // Adjacency badge: shape + number
+    // ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws an adjacency badge: owner-coded shape background with number text inside.
+    /// </summary>
+    private void DrawAdjacencyBadge(Vector2 center, float shapeHalf, int count,
+        TileOwner owner, int fontSize, float alpha = 1.0f)
+    {
+        var bgColor = GetBadgeBgColor(owner);
+        if (alpha < 1.0f) bgColor = new Color(bgColor.R, bgColor.G, bgColor.B, alpha);
+        DrawOwnerShape(center, shapeHalf, owner, bgColor);
+
+        var textColor = GetBadgeTextColor(owner);
+        if (alpha < 1.0f) textColor = new Color(textColor.R, textColor.G, textColor.B, alpha);
+
+        var font = ThemeDB.FallbackFont;
+        var text = count.ToString();
+        var textSize = font.GetStringSize(text, fontSize: fontSize);
+        var textPos = new Vector2(
+            center.X - textSize.X / 2,
+            center.Y + textSize.Y / 2 - 2
+        );
+        DrawString(font, textPos, text, fontSize: fontSize, modulate: textColor);
+    }
+
+    // ───────────────────────────────────────────────
+    // Main draw
+    // ───────────────────────────────────────────────
 
     public override void _Draw()
     {
-        // Unused positions: draw nothing (gap in the grid)
         if (_isUnused) return;
 
         var rect = new Rect2(Vector2.Zero, Size);
@@ -77,7 +189,6 @@ public partial class TileView : Control
         {
             DrawRect(rect, DestroyedColor);
             DrawRect(rect, new Color(0.2f, 0.2f, 0.2f), false, 1.0f);
-            // Draw X
             var margin = 12f;
             var xColor = new Color(0.35f, 0.35f, 0.35f);
             DrawLine(new Vector2(margin, margin), new Vector2(Size.X - margin, Size.Y - margin), xColor, 2.0f);
@@ -108,7 +219,6 @@ public partial class TileView : Control
         {
             if (_isTargetValid)
             {
-                // Brat targeting: highlighted revealed tile
                 bgColor = _isTargetSelected ? TargetSelectedColor : TargetValidColor.Lightened(0.1f);
             }
             else
@@ -126,17 +236,21 @@ public partial class TileView : Control
 
         DrawRect(rect, bgColor);
 
-        // Border (green when valid target)
+        // Border
         var borderColor = _isTargetValid ? TargetBorderColor : new Color(0.2f, 0.2f, 0.2f);
         var borderWidth = _isTargetSelected ? 3.0f : 1.0f;
         DrawRect(rect, borderColor, false, borderWidth);
 
         if (_isRevealed)
         {
-            DrawAdjacencyNumber();
+            DrawRevealedAdjacency();
         }
         else
         {
+            if (_previousAdjacencyCount.HasValue)
+            {
+                DrawDimmedAdjacencyBadge();
+            }
             DrawAnnotations();
             if (_isDirty)
             {
@@ -145,32 +259,58 @@ public partial class TileView : Control
         }
     }
 
-    private void DrawAdjacencyNumber()
+    // ───────────────────────────────────────────────
+    // Revealed tile adjacency (shape-coded badge)
+    // ───────────────────────────────────────────────
+
+    private void DrawRevealedAdjacency()
     {
-        var font = ThemeDB.FallbackFont;
-        var fontSize = 24;
-        var text = _adjacencyCount.ToString();
-        var textSize = font.GetStringSize(text, fontSize: fontSize);
-        var textPos = new Vector2(
-            (Size.X - textSize.X) / 2,
-            (Size.Y + textSize.Y) / 2 - 4
-        );
-        var numColor = _revealedBy == PlayerType.Rival ? RivalAdjColor : PlayerAdjColor;
-        DrawString(font, textPos, text, fontSize: fontSize, modulate: numColor);
+        var owner = RevealerToOwner(_revealedBy);
+        var center = new Vector2(Size.X / 2, Size.Y / 2);
+        DrawAdjacencyBadge(center, 13f, _adjacencyCount, owner, 18);
     }
+
+    private void DrawDimmedAdjacencyBadge()
+    {
+        var owner = RevealerToOwner(_previousRevealedBy);
+        var center = new Vector2(Size.X / 2, Size.Y / 2);
+        DrawAdjacencyBadge(center, 13f, _previousAdjacencyCount!.Value, owner, 18, 0.35f);
+    }
+
+    // ───────────────────────────────────────────────
+    // Annotations on unrevealed tiles
+    // ───────────────────────────────────────────────
 
     private void DrawAnnotations()
     {
         DrawCluePips();
         DrawOwnerGrid();
-        DrawFlagIcon();
-        DrawAdjacencyInfo();
+        DrawPlayerAnnotationGrid();
+        DrawEavesdropAdjacency();
+        DrawPerspectiveCrossout();
+    }
+
+    /// <summary>
+    /// When viewing from a specific owner perspective (any annotation mode),
+    /// draw a thin red diagonal line on tiles whose combined annotations exclude that owner.
+    /// </summary>
+    private void DrawPerspectiveCrossout()
+    {
+        if (_viewingPerspective == null) return;
+
+        var effective = _annotations.EffectiveOwnerSubset;
+        if (effective == null) return;
+        if (effective.Contains(_viewingPerspective.Value)) return;
+
+        var margin = 6f;
+        DrawLine(
+            new Vector2(margin, Size.Y - margin),
+            new Vector2(Size.X - margin, margin),
+            ExcludedMarkColor, 1.5f);
     }
 
     /// <summary>
     /// Top-left: clue pips from Recall cards.
-    /// Each clue cast gets a different color and a consistent row across all tiles.
-    /// Row is determined by global clue ordering (first Recall played = row 0, etc.).
     /// </summary>
     private void DrawCluePips()
     {
@@ -179,121 +319,199 @@ public partial class TileView : Control
 
         var pipRadius = 3.5f;
         var pipSpacing = 10f;
-        var startY = 10f;     // top area
+        var startY = 10f;
         var rowHeight = 10f;
 
         foreach (var clue in clues)
         {
             var globalRow = _globalClueOrder.IndexOf(clue.ClueId);
-            if (globalRow < 0) globalRow = 0; // fallback
+            if (globalRow < 0) globalRow = 0;
 
-            var colorIndex = globalRow % PipColors.Length;
-            var pipColor = PipColors[colorIndex];
             var y = startY + globalRow * rowHeight;
-
-            // Draw pips left-to-right from left edge
             var startX = 5f + pipRadius;
 
             for (var i = 0; i < clue.PipStrength; i++)
             {
                 var x = startX + i * pipSpacing;
-                DrawCircle(new Vector2(x, y), pipRadius, pipColor);
+                DrawCircle(new Vector2(x, y), pipRadius, PipColor);
             }
         }
     }
 
+    // ───────────────────────────────────────────────
+    // Owner annotation grids (shape-coded, smaller)
+    // ───────────────────────────────────────────────
+
     /// <summary>
-    /// Lower-right: 2x2 grid of owner type boxes.
-    /// NW=Player, NE=Neutral, SW=Rival, SE=Noble.
-    /// Uses EffectiveOwnerSubset (combines card annotations + player exclusions).
+    /// Lower-right: 2x2 grid of owner-coded shapes showing the effective owner subset.
+    /// Shows "?" when player and game annotations conflict.
     /// </summary>
     private void DrawOwnerGrid()
     {
         var subset = _annotations.EffectiveOwnerSubset;
         if (subset == null) return;
 
-        var boxSize = 10f;
-        var gap = 2f;
-        var gridWidth = boxSize * 2 + gap;
-        var gridHeight = boxSize * 2 + gap;
-        var originX = Size.X - gridWidth - 4;
-        var originY = Size.Y - gridHeight - 4;
+        if (HasAnnotationConflict())
+        {
+            DrawOwnerGridQuestionMark();
+            return;
+        }
+
+        var half = 3f;      // shape half-size (6px total)
+        var spacing = 8f;   // center-to-center distance
+        // Grid of 4 shapes: 2 columns, 2 rows
+        var gridWidth = spacing;
+        var gridHeight = spacing;
+        var centerX = Size.X - gridWidth / 2 - 5;
+        var centerY = Size.Y - gridHeight / 2 - 5;
 
         // NW = Player
         if (subset.Contains(TileOwner.Player))
-            DrawRect(new Rect2(originX, originY, boxSize, boxSize), OwnerGridPlayer);
-
+            DrawOwnerShape(new Vector2(centerX - spacing / 2, centerY - spacing / 2), half, TileOwner.Player, OwnerGridPlayer);
         // NE = Neutral
         if (subset.Contains(TileOwner.Neutral))
-            DrawRect(new Rect2(originX + boxSize + gap, originY, boxSize, boxSize), OwnerGridNeutral);
-
+            DrawOwnerShape(new Vector2(centerX + spacing / 2, centerY - spacing / 2), half, TileOwner.Neutral, OwnerGridNeutral);
         // SW = Rival
         if (subset.Contains(TileOwner.Rival))
-            DrawRect(new Rect2(originX, originY + boxSize + gap, boxSize, boxSize), OwnerGridRival);
-
+            DrawOwnerShape(new Vector2(centerX - spacing / 2, centerY + spacing / 2), half, TileOwner.Rival, OwnerGridRival);
         // SE = Noble
         if (subset.Contains(TileOwner.Noble))
-            DrawRect(new Rect2(originX + boxSize + gap, originY + boxSize + gap, boxSize, boxSize), OwnerGridNoble);
+            DrawOwnerShape(new Vector2(centerX + spacing / 2, centerY + spacing / 2), half, TileOwner.Noble, OwnerGridNoble);
     }
 
-    /// <summary>
-    /// Top-right: flag icon when tile is flagged by player.
-    /// Drawn as an "F" in red.
-    /// </summary>
-    private void DrawFlagIcon()
+    private bool HasAnnotationConflict()
     {
-        if (!_annotations.Flagged) return;
+        var gameSubset = _annotations.OwnerSubset;
+        if (gameSubset == null) return false;
 
-        var font = ThemeDB.FallbackFont;
-        DrawString(font, new Vector2(Size.X - 14, 14), "F",
-            fontSize: 12, modulate: FlagColor);
+        var confirmed = _annotations.PlayerConfirmed;
+        if (confirmed != null && confirmed.Count > 0)
+        {
+            if (!confirmed.Any(c => gameSubset.Contains(c)))
+                return true;
+        }
+
+        var excluded = _annotations.PlayerExcluded;
+        if (excluded != null)
+        {
+            var remaining = new HashSet<TileOwner>(gameSubset);
+            remaining.ExceptWith(excluded);
+            if (remaining.Count == 0)
+                return true;
+        }
+
+        return false;
     }
 
+    private void DrawOwnerGridQuestionMark()
+    {
+        var font = ThemeDB.FallbackFont;
+        var fontSize = 14;
+        var text = "?";
+        var textSize = font.GetStringSize(text, fontSize: fontSize);
+        var x = Size.X - textSize.X - 6;
+        var y = Size.Y - 6;
+        DrawString(font, new Vector2(x, y), text, fontSize: fontSize,
+            modulate: new Color(0.9f, 0.7f, 0.2f));
+    }
+
+    #nullable enable
+    private HashSet<TileOwner>? GetPlayerAnnotationSet()
+    {
+        var excluded = _annotations.PlayerExcluded;
+        var confirmed = _annotations.PlayerConfirmed;
+        if (excluded == null && confirmed == null) return null;
+
+        var possible = new HashSet<TileOwner> { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
+        if (excluded != null) possible.ExceptWith(excluded);
+        if (confirmed != null && confirmed.Count > 0) possible.IntersectWith(confirmed);
+        return possible.Count == 4 ? null : possible;
+    }
+    #nullable restore
+
     /// <summary>
-    /// Below the owner grid: per-owner adjacency counts from Eavesdrop/AcceptHelp/Deliver.
-    /// Shows colored count labels for each known owner type.
+    /// Top-right: 2x2 grid showing player's manual annotations (shape-coded).
+    /// Only drawn when the player set differs from the effective (combined) set.
     /// </summary>
-    private void DrawAdjacencyInfo()
+    private void DrawPlayerAnnotationGrid()
+    {
+        var playerSet = GetPlayerAnnotationSet();
+        if (playerSet == null) return;
+
+        var effective = _annotations.EffectiveOwnerSubset;
+        if (effective != null && playerSet.SetEquals(effective)) return;
+
+        var half = 2.5f;    // shape half-size (5px total)
+        var spacing = 7f;
+        var centerX = Size.X - spacing / 2 - 5;
+        var centerY = spacing / 2 + 4;
+
+        if (playerSet.Contains(TileOwner.Player))
+            DrawOwnerShape(new Vector2(centerX - spacing / 2, centerY - spacing / 2), half, TileOwner.Player, OwnerGridPlayer);
+        if (playerSet.Contains(TileOwner.Neutral))
+            DrawOwnerShape(new Vector2(centerX + spacing / 2, centerY - spacing / 2), half, TileOwner.Neutral, OwnerGridNeutral);
+        if (playerSet.Contains(TileOwner.Rival))
+            DrawOwnerShape(new Vector2(centerX - spacing / 2, centerY + spacing / 2), half, TileOwner.Rival, OwnerGridRival);
+        if (playerSet.Contains(TileOwner.Noble))
+            DrawOwnerShape(new Vector2(centerX + spacing / 2, centerY + spacing / 2), half, TileOwner.Noble, OwnerGridNoble);
+    }
+
+    // ───────────────────────────────────────────────
+    // Eavesdrop/AcceptHelp/Deliver adjacency info
+    // (shape-coded badges on unrevealed tiles)
+    // ───────────────────────────────────────────────
+
+    private void DrawEavesdropAdjacency()
     {
         var info = _annotations.AdjacencyInfo;
         if (info == null) return;
 
-        var font = ThemeDB.FallbackFont;
-        var fontSize = 8;
-        var y = Size.Y - 4;
-        var x = 4f;
+        // Count how many owner types have data
+        var count = 0;
+        if (info.PlayerCount.HasValue) count++;
+        if (info.RivalCount.HasValue) count++;
+        if (info.NeutralCount.HasValue) count++;
+        if (info.NobleCount.HasValue) count++;
 
-        if (info.PlayerCount.HasValue)
+        var center = new Vector2(Size.X / 2, Size.Y / 2);
+
+        if (count == 1)
         {
-            var text = $"P:{info.PlayerCount.Value}";
-            DrawString(font, new Vector2(x, y), text, fontSize: fontSize, modulate: OwnerGridPlayer);
-            x += font.GetStringSize(text, fontSize: fontSize).X + 3;
+            // Single adjacency info: one badge in center
+            if (info.PlayerCount.HasValue)
+                DrawAdjacencyBadge(center, 10f, info.PlayerCount.Value, TileOwner.Player, 14);
+            else if (info.RivalCount.HasValue)
+                DrawAdjacencyBadge(center, 10f, info.RivalCount.Value, TileOwner.Rival, 14);
+            else if (info.NeutralCount.HasValue)
+                DrawAdjacencyBadge(center, 10f, info.NeutralCount.Value, TileOwner.Neutral, 14);
+            else if (info.NobleCount.HasValue)
+                DrawAdjacencyBadge(center, 10f, info.NobleCount.Value, TileOwner.Noble, 14);
         }
-
-        if (info.RivalCount.HasValue)
+        else
         {
-            var text = $"R:{info.RivalCount.Value}";
-            DrawString(font, new Vector2(x, y), text, fontSize: fontSize, modulate: OwnerGridRival);
-            x += font.GetStringSize(text, fontSize: fontSize).X + 3;
-        }
-
-        if (info.NeutralCount.HasValue)
-        {
-            var text = $"N:{info.NeutralCount.Value}";
-            DrawString(font, new Vector2(x, y), text, fontSize: fontSize, modulate: OwnerGridNeutral);
-            x += font.GetStringSize(text, fontSize: fontSize).X + 3;
-        }
-
-        if (info.NobleCount.HasValue)
-        {
-            var text = $"X:{info.NobleCount.Value}";
-            DrawString(font, new Vector2(x, y), text, fontSize: fontSize, modulate: OwnerGridNoble);
+            // Multiple: 2x2 formation in center, smaller badges
+            var half = 7f;
+            var gap = 9f; // center-to-center
+            // NW=Player, NE=Neutral, SW=Rival, SE=Noble (same layout)
+            if (info.PlayerCount.HasValue)
+                DrawAdjacencyBadge(new Vector2(center.X - gap / 2, center.Y - gap / 2),
+                    half, info.PlayerCount.Value, TileOwner.Player, 10);
+            if (info.NeutralCount.HasValue)
+                DrawAdjacencyBadge(new Vector2(center.X + gap / 2, center.Y - gap / 2),
+                    half, info.NeutralCount.Value, TileOwner.Neutral, 10);
+            if (info.RivalCount.HasValue)
+                DrawAdjacencyBadge(new Vector2(center.X - gap / 2, center.Y + gap / 2),
+                    half, info.RivalCount.Value, TileOwner.Rival, 10);
+            if (info.NobleCount.HasValue)
+                DrawAdjacencyBadge(new Vector2(center.X + gap / 2, center.Y + gap / 2),
+                    half, info.NobleCount.Value, TileOwner.Noble, 10);
         }
     }
 
-    /// <summary>
-    /// Draws diagonal hatching lines to indicate ExtraDirty tile.
-    /// </summary>
+    // ───────────────────────────────────────────────
+    // Misc drawing helpers
+    // ───────────────────────────────────────────────
+
     private void DrawDirtyIndicator()
     {
         var hatchColor = new Color(0.5f, 0.4f, 0.2f, 0.5f);
@@ -310,8 +528,24 @@ public partial class TileView : Control
         }
     }
 
-    public void UpdateVisual(Tile tile, List<string> globalClueOrder)
+    // ───────────────────────────────────────────────
+    // State updates
+    // ───────────────────────────────────────────────
+
+    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null)
     {
+        // Track Brat un-reveal: if tile was revealed and is now unrevealed, preserve adjacency
+        if (_isRevealed && !tile.IsRevealed)
+        {
+            _previousAdjacencyCount = _adjacencyCount;
+            _previousRevealedBy = _revealedBy;
+        }
+        else if (tile.IsRevealed)
+        {
+            _previousAdjacencyCount = null;
+            _previousRevealedBy = null;
+        }
+
         _isRevealed = tile.IsRevealed;
         _owner = tile.Owner;
         _adjacencyCount = tile.AdjacencyCount;
@@ -320,6 +554,7 @@ public partial class TileView : Control
         _isDirty = tile.IsDirty;
         _isDestroyed = tile.IsDestroyed;
         _globalClueOrder = globalClueOrder;
+        _viewingPerspective = viewingPerspective;
         QueueRedraw();
     }
 

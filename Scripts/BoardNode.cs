@@ -17,6 +17,12 @@ public partial class BoardNode : Node2D
     [Signal]
     public delegate void TileRightClickedEventHandler(int row, int col);
 
+    [Signal]
+    public delegate void TileHoveredEventHandler(int row, int col);
+
+    [Signal]
+    public delegate void TileUnhoveredEventHandler(int row, int col);
+
     private const int TileSize = 64;
     private const int TileGap = 4;
 
@@ -50,6 +56,8 @@ public partial class BoardNode : Node2D
 
                 tileNode.TileClicked += OnTileClicked;
                 tileNode.TileRightClicked += OnTileRightClicked;
+                tileNode.TileHovered += OnTileHovered;
+                tileNode.TileUnhovered += OnTileUnhovered;
 
                 AddChild(tileNode);
                 _tileNodes[row, col] = tileNode;
@@ -67,7 +75,7 @@ public partial class BoardNode : Node2D
         }
     }
 
-    public void UpdateBoard(Board board, List<string> globalClueOrder)
+    public void UpdateBoard(Board board, List<string> globalClueOrder, TileOwner? viewingPerspective = null)
     {
         if (_tileNodes == null) return;
 
@@ -76,7 +84,7 @@ public partial class BoardNode : Node2D
             for (var col = 0; col < board.Width; col++)
             {
                 var tile = board.GetTile(new Position(row, col));
-                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder);
+                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective);
             }
         }
     }
@@ -195,5 +203,15 @@ public partial class BoardNode : Node2D
     private void OnTileRightClicked(int row, int col)
     {
         EmitSignal(SignalName.TileRightClicked, row, col);
+    }
+
+    private void OnTileHovered(int row, int col)
+    {
+        EmitSignal(SignalName.TileHovered, row, col);
+    }
+
+    private void OnTileUnhovered(int row, int col)
+    {
+        EmitSignal(SignalName.TileUnhovered, row, col);
     }
 }
