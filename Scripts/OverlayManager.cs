@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Maidsweeper.Core.Models;
@@ -37,6 +38,7 @@ public partial class OverlayManager : RefCounted
     private VBoxContainer _vbox = null!;
     private Label _title = null!;
     private Label _details = null!;
+    private ScrollContainer _cardsScroll = null!;
     private HBoxContainer _cardsRow = null!;
     private VBoxContainer _upgradeButtons = null!;
     private Button _skipButton = null!;
@@ -77,6 +79,8 @@ public partial class OverlayManager : RefCounted
         };
         _panel = new PanelContainer();
         _panel.AddThemeStyleboxOverride("panel", panelStyle);
+        _panel.CustomMinimumSize = new Vector2(400, 0);
+        _panel.SetAnchorsPreset(Control.LayoutPreset.TopLeft); // don't stretch
         center.AddChild(_panel);
 
         _vbox = new VBoxContainer();
@@ -92,11 +96,20 @@ public partial class OverlayManager : RefCounted
         _details.AddThemeFontSizeOverride("font_size", 16);
         _vbox.AddChild(_details);
 
+        _cardsScroll = new ScrollContainer
+        {
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Auto,
+            VerticalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            Visible = false,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(600, 160) // fixed width so cards scroll; height for cards + scrollbar
+        };
+        _vbox.AddChild(_cardsScroll);
+
         _cardsRow = new HBoxContainer();
         _cardsRow.AddThemeConstantOverride("separation", 12);
-        _cardsRow.Alignment = BoxContainer.AlignmentMode.Center;
-        _cardsRow.Visible = false;
-        _vbox.AddChild(_cardsRow);
+        _cardsRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _cardsScroll.AddChild(_cardsRow);
 
         _upgradeButtons = new VBoxContainer();
         _upgradeButtons.AddThemeConstantOverride("separation", 8);
@@ -174,7 +187,7 @@ public partial class OverlayManager : RefCounted
             }
         }
 
-        _cardsRow.Visible = true;
+        _cardsScroll.Visible = true;
         _upgradeButtons.Visible = false;
         _skipButton.Visible = true;
         _skipButton.Text = "Skip";
@@ -188,7 +201,7 @@ public partial class OverlayManager : RefCounted
         SetTitle("Upgrade Your Deck", new Color(0.85f, 0.7f, 0.15f));
         _details.Text = "Choose an upgrade:";
 
-        _cardsRow.Visible = false;
+        _cardsScroll.Visible = false;
         ClearUpgradeButtons();
 
         if (state.UpgradeOptions != null)
@@ -243,7 +256,7 @@ public partial class OverlayManager : RefCounted
             cardUI.CardClicked += id => EmitSignal(SignalName.RemoveCardSelected, id);
         }
 
-        _cardsRow.Visible = true;
+        _cardsScroll.Visible = true;
         _upgradeButtons.Visible = false;
         _skipButton.Visible = true;
         _skipButton.Text = "Back";
@@ -267,10 +280,36 @@ public partial class OverlayManager : RefCounted
             cardUI.CardClicked += id => EmitSignal(SignalName.NapCardSelected, id);
         }
 
-        _cardsRow.Visible = true;
+        _cardsScroll.Visible = true;
         _upgradeButtons.Visible = false;
         _skipButton.Visible = true;
         _skipButton.Text = "Cancel";
+        _playAgainButton.Visible = false;
+        _dim.Visible = true;
+    }
+
+    public void ShowPileView(string title, List<Card> cards)
+    {
+        CurrentMode = OverlayMode.PileView;
+        var titleColor = new Color(0.7f, 0.8f, 0.9f);
+        SetTitle(title, titleColor);
+        _details.Text = cards.Count == 0 ? "(empty)" : $"{cards.Count} card{(cards.Count == 1 ? "" : "s")}";
+
+        ClearCards();
+        ClearUpgradeButtons();
+
+        foreach (var card in cards)
+        {
+            var cardUI = new CardUI();
+            _cardsRow.AddChild(cardUI);
+            cardUI.Setup(card, true);
+            // No click action — view only
+        }
+
+        _cardsScroll.Visible = cards.Count > 0;
+        _upgradeButtons.Visible = false;
+        _skipButton.Visible = true;
+        _skipButton.Text = "Close";
         _playAgainButton.Visible = false;
         _dim.Visible = true;
     }
@@ -287,7 +326,7 @@ public partial class OverlayManager : RefCounted
 
     private void ShowEndButtons(string buttonText)
     {
-        _cardsRow.Visible = false;
+        _cardsScroll.Visible = false;
         _upgradeButtons.Visible = false;
         _skipButton.Visible = false;
         _playAgainButton.Visible = true;
@@ -318,5 +357,6 @@ public enum OverlayMode
     CardReward,
     UpgradeReward,
     RemoveCard,
-    NapSelection
+    NapSelection,
+    PileView
 }

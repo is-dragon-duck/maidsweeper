@@ -16,8 +16,13 @@ public partial class HUD : VBoxContainer
     [Signal]
     public delegate void AnnotationTypeChangedEventHandler(int ownerIndex);
 
+    [Signal]
+    public delegate void ViewPileRequestedEventHandler(string pileName);
+
     private Label _spoonsLabel = null!;
-    private Label _deckLabel = null!;
+    private Button _deckButton = null!;
+    private Button _discardButton = null!;
+    private Button _exhaustButton = null!;
     private Label _turnLabel = null!;
     private Label _statusLabel = null!;
     private Label _copperLabel = null!;
@@ -70,8 +75,25 @@ public partial class HUD : VBoxContainer
         _copperLabel = new Label { Text = "Copper: 0" };
         AddChild(_copperLabel);
 
-        _deckLabel = new Label { Text = "Deck: 5 | Discard: 0 | Exhaust: 0" };
-        AddChild(_deckLabel);
+        var pileRow = new HBoxContainer();
+        pileRow.AddThemeConstantOverride("separation", 4);
+        AddChild(pileRow);
+
+        _deckButton = new Button { Text = "Deck: 5", Flat = true };
+        _deckButton.Pressed += () => EmitSignal(SignalName.ViewPileRequested, "draw");
+        pileRow.AddChild(_deckButton);
+
+        pileRow.AddChild(new Label { Text = "|" });
+
+        _discardButton = new Button { Text = "Discard: 0", Flat = true };
+        _discardButton.Pressed += () => EmitSignal(SignalName.ViewPileRequested, "discard");
+        pileRow.AddChild(_discardButton);
+
+        pileRow.AddChild(new Label { Text = "|" });
+
+        _exhaustButton = new Button { Text = "Exhaust: 0", Flat = true };
+        _exhaustButton.Pressed += () => EmitSignal(SignalName.ViewPileRequested, "exhaust");
+        pileRow.AddChild(_exhaustButton);
 
         _statusEffectsLabel = new Label { Text = "" };
         _statusEffectsLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.3f));
@@ -150,7 +172,9 @@ public partial class HUD : VBoxContainer
     {
         _spoonsLabel.Text = $"Spoons: {state.Spoons} / {state.MaxSpoons}";
         _copperLabel.Text = $"Copper: {state.Copper}";
-        _deckLabel.Text = $"Deck: {state.DrawPile.Count} | Discard: {state.DiscardPile.Count} | Exhaust: {state.ExhaustPile.Count}";
+        _deckButton.Text = $"Deck: {state.DrawPile.Count}";
+        _discardButton.Text = $"Discard: {state.DiscardPile.Count}";
+        _exhaustButton.Text = $"Exhaust: {state.ExhaustPile.Count}";
 
         var floorNum = GetFloorNumber(state.CurrentLevelId);
         _floorLabel.Text = $"Floor {floorNum}/8";

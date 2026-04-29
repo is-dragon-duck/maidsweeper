@@ -480,7 +480,7 @@ public static class CardEffectSystem
             newTiles[board.TileIndex(target.Position)] = target with
             {
                 IsRevealed = true,
-                RevealedBy = PlayerType.Player,
+                RevealedBy = PlayerType.Rival,
                 AdjacencyCount = rivalAdj
             };
             board = board with { Tiles = newTiles };

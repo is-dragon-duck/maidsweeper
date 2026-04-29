@@ -747,19 +747,19 @@ public class CardEffectTests
 
         var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
 
-        // The newly revealed player tile should have rival adjacency
+        // The newly revealed player tile should have rival adjacency and rival perspective
         var revealedPlayer = newState.Board.Tiles
             .First(t => t.IsRevealed && t.Owner == TileOwner.Player && !state.Board.GetTile(t.Position).IsRevealed);
         var expectedRivalAdj = BoardSystem.CalculateAdjacency(state.Board, revealedPlayer.Position, PlayerType.Rival);
         Assert.Equal(expectedRivalAdj, revealedPlayer.AdjacencyCount);
+        Assert.Equal(PlayerType.Rival, revealedPlayer.RevealedBy);
 
-        // The newly revealed rival tile should have player adjacency
+        // The newly revealed rival tile should have player adjacency and player perspective
         var revealedRival = newState.Board.Tiles
             .First(t => t.IsRevealed && t.Owner == TileOwner.Rival && !state.Board.GetTile(t.Position).IsRevealed);
-        // Need to check against updated board (after player tile was revealed)
-        var boardAfterPlayerReveal = newState.Board;
         var expectedPlayerAdj = BoardSystem.CalculateAdjacency(state.Board, revealedRival.Position, PlayerType.Player);
         Assert.Equal(expectedPlayerAdj, revealedRival.AdjacencyCount);
+        Assert.Equal(PlayerType.Player, revealedRival.RevealedBy);
     }
 
     [Fact]

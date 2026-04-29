@@ -59,6 +59,7 @@ public partial class GameController : MarginContainer
         _handDisplay.CardClicked += OnCardClicked;
         _hud.EndTurnPressed += OnEndTurnPressed;
         _hud.AnnotationTypeChanged += OnAnnotationTypeChanged;
+        _hud.ViewPileRequested += OnViewPileRequested;
         _cancelButton.Pressed += OnCancelTargeting;
 
         // Overlay
@@ -84,6 +85,11 @@ public partial class GameController : MarginContainer
             if (_targeting.IsTargeting)
             {
                 CancelTargeting();
+                GetViewport().SetInputAsHandled();
+            }
+            else if (_overlay.IsVisible && _overlay.CurrentMode == OverlayMode.PileView)
+            {
+                _overlay.Hide();
                 GetViewport().SetInputAsHandled();
             }
             else if (_overlay.IsVisible && _targeting.Mode == TargetingMode.ExhaustCardTarget)
@@ -349,6 +355,10 @@ public partial class GameController : MarginContainer
                 else
                     StartNextFloor();
                 return;
+
+            case OverlayMode.PileView:
+                _overlay.Hide();
+                return;
         }
     }
 
@@ -424,6 +434,20 @@ public partial class GameController : MarginContainer
     private void OnAnnotationTypeChanged(int ownerIndex)
     {
         RefreshUI();
+    }
+
+    private void OnViewPileRequested(string pileName)
+    {
+        if (_overlay.IsVisible) return; // don't open pile view over another overlay
+
+        var (title, cards) = pileName switch
+        {
+            "draw" => ("Draw Pile", _state.DrawPile.ToList()),
+            "discard" => ("Discard Pile", _state.DiscardPile.ToList()),
+            "exhaust" => ("Exhaust Pile", _state.ExhaustPile.ToList()),
+            _ => ("Pile", new System.Collections.Generic.List<Card>())
+        };
+        _overlay.ShowPileView(title, cards);
     }
 
     private void OnTileRightClicked(int row, int col)
