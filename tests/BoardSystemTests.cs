@@ -467,4 +467,107 @@ public class BoardSystemTests
         var tiles = BoardSystem.GetTilesInArea(board, new Position(2, 3), 2);
         Assert.Equal(25, tiles.Count);
     }
+
+    // --- Saturation Tests ---
+
+    [Fact]
+    public void IsSaturated_UnrevealedTileReturnsFalse()
+    {
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
+        Assert.False(BoardSystem.IsSaturated(board, new Position(0, 0)));
+    }
+
+    [Fact]
+    public void IsSaturated_RevealedTileWithNoRevealedNeighbors_FalseUnlessZero()
+    {
+        var board = BoardSystem.CreateBoard(Level1, new Random(42));
+        var pos = new Position(2, 3);
+        board = BoardSystem.RevealTile(board, pos, PlayerType.Player);
+
+        var tile = board.GetTile(pos);
+        // If adjacency is 0, it's trivially saturated (all 0 player neighbors accounted for)
+        // Otherwise, not saturated since no neighbors are revealed yet
+        Assert.Equal(tile.AdjacencyCount == 0, BoardSystem.IsSaturated(board, pos));
+    }
+
+    [Fact]
+    public void IsSaturated_AllMatchingNeighborsRevealed_ReturnsTrue()
+    {
+        // Build a small controlled board: 3x3
+        var config = new LevelConfig
+        {
+            Width = 3, Height = 3,
+            PlayerCount = 4, RivalCount = 3, NeutralCount = 2, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+
+        // Reveal center tile
+        var center = new Position(1, 1);
+        board = BoardSystem.RevealTile(board, center, PlayerType.Player);
+        var adjCount = board.GetTile(center).AdjacencyCount;
+
+        // Reveal all neighbors that are Player-owned
+        var neighbors = BoardSystem.GetNeighbors(board, center);
+        foreach (var n in neighbors)
+        {
+            if (board.GetTile(n).Owner == TileOwner.Player)
+                board = BoardSystem.RevealTile(board, n, PlayerType.Player);
+        }
+
+        // Now all player neighbors are revealed — should be saturated
+        Assert.True(BoardSystem.IsSaturated(board, center));
+    }
+
+    [Fact]
+    public void IsSaturated_SomeMatchingNeighborsUnrevealed_ReturnsFalse()
+    {
+        var config = new LevelConfig
+        {
+            Width = 3, Height = 3,
+            PlayerCount = 5, RivalCount = 2, NeutralCount = 2, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+
+        var center = new Position(1, 1);
+        board = BoardSystem.RevealTile(board, center, PlayerType.Player);
+        var adjCount = board.GetTile(center).AdjacencyCount;
+
+        if (adjCount == 0)
+        {
+            // Trivially saturated with 0 count — skip this test scenario
+            Assert.True(BoardSystem.IsSaturated(board, center));
+            return;
+        }
+
+        // Reveal only one player neighbor (if adjacency > 1, still not saturated)
+        var neighbors = BoardSystem.GetNeighbors(board, center);
+        var playerNeighbors = neighbors.Where(n => board.GetTile(n).Owner == TileOwner.Player).ToList();
+
+        if (playerNeighbors.Count > 1)
+        {
+            board = BoardSystem.RevealTile(board, playerNeighbors[0], PlayerType.Player);
+            Assert.False(BoardSystem.IsSaturated(board, center));
+        }
+    }
+
+    [Fact]
+    public void IsSaturated_DestroyedTileReturnsFalse()
+    {
+        var config = new LevelConfig
+        {
+            Width = 3, Height = 3,
+            PlayerCount = 4, RivalCount = 3, NeutralCount = 2, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+        var pos = new Position(1, 1);
+        board = BoardSystem.RevealTile(board, pos, PlayerType.Player);
+
+        // Destroy the tile
+        var tile = board.GetTile(pos);
+        var newTiles = board.Tiles.ToList();
+        newTiles[board.TileIndex(pos)] = tile with { IsDestroyed = true };
+        board = board with { Tiles = newTiles };
+
+        Assert.False(BoardSystem.IsSaturated(board, pos));
+    }
 }

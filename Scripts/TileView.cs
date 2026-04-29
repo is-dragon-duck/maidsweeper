@@ -70,6 +70,7 @@ public partial class TileView : Control
     // Track previous adjacency for Brat un-reveal (dimmed display)
     private int? _previousAdjacencyCount;
     private PlayerType? _previousRevealedBy;
+    private bool _isSaturated;
 
     // ───────────────────────────────────────────────
     // Shape drawing primitives
@@ -270,6 +271,29 @@ public partial class TileView : Control
         var owner = RevealerToOwner(_revealedBy);
         var center = new Vector2(Size.X / 2, Size.Y / 2);
         DrawAdjacencyBadge(center, 13f, _adjacencyCount, owner, 18);
+
+        if (_isSaturated)
+        {
+            DrawSaturationCheck();
+        }
+    }
+
+    private static readonly Color SaturationCheckColor = new(0.7f, 0.2f, 0.3f); // dark pink/red
+
+    /// <summary>
+    /// Draws a small check mark at the bottom-right corner of the adjacency badge.
+    /// </summary>
+    private void DrawSaturationCheck()
+    {
+        // Position at bottom-right of the badge area
+        var cx = Size.X / 2 + 12f;
+        var cy = Size.Y / 2 + 12f;
+        // Check mark: short down-right stroke, then longer up-right stroke
+        var p1 = new Vector2(cx - 4f, cy - 1f);
+        var p2 = new Vector2(cx - 1f, cy + 2f);
+        var p3 = new Vector2(cx + 4f, cy - 4f);
+        DrawLine(p1, p2, SaturationCheckColor, 2.0f);
+        DrawLine(p2, p3, SaturationCheckColor, 2.0f);
     }
 
     private void DrawDimmedAdjacencyBadge()
@@ -534,7 +558,7 @@ public partial class TileView : Control
     // State updates
     // ───────────────────────────────────────────────
 
-    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null)
+    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false)
     {
         // Track Brat un-reveal: if tile was revealed and is now unrevealed, preserve adjacency
         if (_isRevealed && !tile.IsRevealed)
@@ -555,6 +579,7 @@ public partial class TileView : Control
         _annotations = tile.Annotations;
         _isDirty = tile.IsDirty;
         _isDestroyed = tile.IsDestroyed;
+        _isSaturated = saturated;
         _globalClueOrder = globalClueOrder;
         _viewingPerspective = viewingPerspective;
         QueueRedraw();

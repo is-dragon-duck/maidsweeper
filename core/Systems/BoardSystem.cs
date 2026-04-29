@@ -238,6 +238,29 @@ public static class BoardSystem
         };
     }
 
+    /// <summary>
+    /// Checks whether a revealed tile's adjacency count is fully satisfied by
+    /// adjacent revealed tiles of the matching owner type.
+    /// E.g., a tile with RevealedBy=Player and AdjacencyCount=3 is saturated
+    /// when exactly 3 adjacent revealed tiles are Player-owned.
+    /// </summary>
+    public static bool IsSaturated(Board board, Position pos)
+    {
+        var tile = board.GetTile(pos);
+        if (!tile.IsRevealed || tile.IsDestroyed) return false;
+        if (tile.RevealedBy == null) return false;
+
+        var targetOwner = tile.RevealedBy == PlayerType.Player ? TileOwner.Player : TileOwner.Rival;
+        var neighbors = GetNeighbors(board, pos);
+        var revealedMatchCount = neighbors.Count(n =>
+        {
+            var neighbor = board.GetTile(n);
+            return neighbor.IsRevealed && neighbor.Owner == targetOwner;
+        });
+
+        return revealedMatchCount >= tile.AdjacencyCount;
+    }
+
     /// <summary>Fisher-Yates shuffle.</summary>
     private static void Shuffle<T>(List<T> list, Random rng)
     {

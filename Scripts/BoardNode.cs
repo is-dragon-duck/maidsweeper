@@ -83,8 +83,10 @@ public partial class BoardNode : Node2D
         {
             for (var col = 0; col < board.Width; col++)
             {
-                var tile = board.GetTile(new Position(row, col));
-                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective);
+                var pos = new Position(row, col);
+                var tile = board.GetTile(pos);
+                var saturated = tile.IsRevealed && BoardSystem.IsSaturated(board, pos);
+                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated);
             }
         }
     }
