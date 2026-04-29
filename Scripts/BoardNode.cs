@@ -100,8 +100,9 @@ public partial class BoardNode : Node2D
     /// <summary>
     /// Sets targeting highlights for tiles. When targetRevealed is true (Brat),
     /// highlights revealed non-destroyed tiles instead of unrevealed.
+    /// When areaCenterMode is true (Sweep), all non-unused positions are valid.
     /// </summary>
-    public void SetTargetingHighlights(Board board, bool targetRevealed)
+    public void SetTargetingHighlights(Board board, bool targetRevealed, bool areaCenterMode = false)
     {
         if (_tileNodes == null) return;
 
@@ -112,7 +113,9 @@ public partial class BoardNode : Node2D
                 var pos = new Position(row, col);
                 var tile = board.GetTile(pos);
                 bool isValidTarget;
-                if (targetRevealed)
+                if (areaCenterMode)
+                    isValidTarget = !board.UnusedPositions.Contains(pos);
+                else if (targetRevealed)
                     isValidTarget = board.IsUsablePosition(pos) && tile.IsRevealed && !tile.IsDestroyed;
                 else
                     isValidTarget = board.IsUsablePosition(pos) && !tile.IsRevealed && !tile.IsDestroyed;

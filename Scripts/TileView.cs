@@ -202,12 +202,14 @@ public partial class TileView : Control
         {
             if (_isTargetSelected)
                 bgColor = TargetSelectedColor;
+            else if (_isAreaPreview && _isHovered)
+                bgColor = AreaPreviewColor.Lightened(0.2f);
+            else if (_isAreaPreview)
+                bgColor = AreaPreviewColor;
             else if (_isTargetValid && _isHovered)
                 bgColor = TargetValidColor.Lightened(0.15f);
             else if (_isTargetValid)
                 bgColor = TargetValidColor;
-            else if (_isAreaPreview)
-                bgColor = AreaPreviewColor;
             else if (_isHovered)
                 bgColor = HoverColor;
             else if (_isDirty)

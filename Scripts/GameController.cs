@@ -10,8 +10,7 @@ namespace Maidsweeper.Scripts;
 /// <summary>
 /// Root controller: creates the game, handles input events, updates UI.
 /// Bridges Godot signals to pure C# GameRunner and CampaignSystem.
-/// Manages card targeting flow, game-over overlay, card reward screen,
-/// upgrade reward screen, Mask/Nap card-selection, and victory screen.
+/// Delegates overlay display to OverlayManager.
 /// </summary>
 public partial class GameController : MarginContainer
 {
@@ -25,21 +24,11 @@ public partial class GameController : MarginContainer
     private Random _rng = null!;
     private readonly TargetingController _targeting = new();
     private readonly List<string> _globalClueOrder = new();
+    private readonly OverlayManager _overlay = new();
 
-    // Overlay (shared for game-over, card reward, upgrade reward, nap, and victory)
-    private ColorRect _overlayDim = null!;
-    private PanelContainer _overlayPanel = null!;
-    private VBoxContainer _overlayVBox = null!;
-    private Label _overlayTitle = null!;
-    private Label _overlayDetails = null!;
-    private Button _playAgainButton = null!;
-
-    // Card reward / selection UI (built inside overlay)
-    private HBoxContainer _rewardCardsRow = null!;
-    private Button _skipRewardButton = null!;
-
-    // Upgrade reward UI
-    private VBoxContainer _upgradeButtonsContainer = null!;
+    // Debug card picker
+    private ColorRect _debugOverlay = null!;
+    private int _debugCardIdCounter;
 
     public override void _Ready()
     {
@@ -51,7 +40,7 @@ public partial class GameController : MarginContainer
         bg.SetAnchorsPreset(LayoutPreset.FullRect);
         bg.MouseFilter = MouseFilterEnum.Ignore;
         AddChild(bg);
-        MoveChild(bg, 0); // Behind everything
+        MoveChild(bg, 0);
 
         _boardNode = GetNode<BoardNode>("Layout/TopArea/BoardMargin/Board");
         _handDisplay = GetNode<HandDisplay>("Layout/HandPanel/HandDisplay");
@@ -60,18 +49,33 @@ public partial class GameController : MarginContainer
         _targetingLabel = GetNode<Label>("Layout/TargetingBanner/HBox/TargetingLabel");
         _cancelButton = GetNode<Button>("Layout/TargetingBanner/HBox/CancelButton");
 
+        // Board signals
         _boardNode.TileClicked += OnTileClicked;
         _boardNode.TileRightClicked += OnTileRightClicked;
         _boardNode.TileHovered += OnTileHovered;
         _boardNode.TileUnhovered += OnTileUnhovered;
+
+        // Hand/HUD signals
         _handDisplay.CardClicked += OnCardClicked;
         _hud.EndTurnPressed += OnEndTurnPressed;
         _hud.AnnotationTypeChanged += OnAnnotationTypeChanged;
         _cancelButton.Pressed += OnCancelTargeting;
 
-        CreateOverlay();
+        // Overlay
+        _overlay.Build(this);
+        _overlay.RewardCardSelected += OnRewardCardSelected;
+        _overlay.UpgradeSelected += OnUpgradeSelected;
+        _overlay.RemoveCardSelected += OnRemoveCardSelected;
+        _overlay.NapCardSelected += OnNapCardSelected;
+        _overlay.SkipPressed += OnSkipPressed;
+        _overlay.PlayAgainPressed += OnPlayAgain;
+
         StartNewCampaign();
     }
+
+    // ───────────────────────────────────────────────
+    // Input
+    // ───────────────────────────────────────────────
 
     public override void _UnhandledInput(InputEvent @event)
     {
@@ -82,9 +86,8 @@ public partial class GameController : MarginContainer
                 CancelTargeting();
                 GetViewport().SetInputAsHandled();
             }
-            else if (_overlayDim.Visible && _targeting.Mode == TargetingMode.ExhaustCardTarget)
+            else if (_overlay.IsVisible && _targeting.Mode == TargetingMode.ExhaustCardTarget)
             {
-                // Cancel Nap overlay via Escape
                 HideNapOverlay();
                 GetViewport().SetInputAsHandled();
             }
@@ -99,232 +102,52 @@ public partial class GameController : MarginContainer
             ToggleDebugCardPicker();
             GetViewport().SetInputAsHandled();
         }
+        else if (@event is InputEventKey { Pressed: true, Keycode: Key.F3 })
+        {
+            DebugRevealAllPlayer();
+            GetViewport().SetInputAsHandled();
+        }
     }
 
-    // Debug card picker
-    private ColorRect _debugOverlay = null!;
-    private int _debugCardIdCounter;
-
-    private void ToggleDebugCardPicker()
+    /// <summary>
+    /// Debug: reveal all remaining unrevealed Player tiles, triggering floor completion.
+    /// </summary>
+    private void DebugRevealAllPlayer()
     {
         if (_state.GameStatus != GameStatus.Playing) return;
 
-        if (_debugOverlay != null && _debugOverlay.Visible)
-        {
-            _debugOverlay.Visible = false;
-            return;
-        }
-
-        ShowDebugCardPicker();
-    }
-
-    private void ShowDebugCardPicker()
-    {
-        // Remove previous debug overlay if it exists
-        if (_debugOverlay != null)
-        {
-            _debugOverlay.QueueFree();
-            _debugOverlay = null!;
-        }
-
-        // Dim background
-        _debugOverlay = new ColorRect
-        {
-            Color = new Color(0, 0, 0, 0.6f),
-            Visible = true
-        };
-        _debugOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
-        _debugOverlay.MouseFilter = MouseFilterEnum.Stop;
-        AddChild(_debugOverlay);
-
-        // Center container
-        var center = new CenterContainer();
-        center.SetAnchorsPreset(LayoutPreset.FullRect);
-        center.MouseFilter = MouseFilterEnum.Ignore;
-        _debugOverlay.AddChild(center);
-
-        // Panel
-        var panelStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.1f, 0.1f, 0.13f, 0.95f),
-            ContentMarginLeft = 20,
-            ContentMarginRight = 20,
-            ContentMarginTop = 16,
-            ContentMarginBottom = 16,
-            CornerRadiusBottomLeft = 8,
-            CornerRadiusBottomRight = 8,
-            CornerRadiusTopLeft = 8,
-            CornerRadiusTopRight = 8
-        };
-        var panel = new PanelContainer();
-        panel.AddThemeStyleboxOverride("panel", panelStyle);
-        panel.CustomMinimumSize = new Vector2(360, 500);
-        center.AddChild(panel);
-
-        var outerVBox = new VBoxContainer();
-        outerVBox.AddThemeConstantOverride("separation", 8);
-        panel.AddChild(outerVBox);
-
-        // Title
-        var title = new Label
-        {
-            Text = "Debug: Add Card to Hand",
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        title.AddThemeFontSizeOverride("font_size", 18);
-        outerVBox.AddChild(title);
-
-        // Upgrade checkboxes row
-        var checkRow = new HBoxContainer();
-        checkRow.AddThemeConstantOverride("separation", 16);
-        checkRow.Alignment = BoxContainer.AlignmentMode.Center;
-        outerVBox.AddChild(checkRow);
-
-        var enhancedCheck = new CheckBox { Text = "Enhanced" };
-        checkRow.AddChild(enhancedCheck);
-
-        var bonusSpoonCheck = new CheckBox { Text = "Bonus Spoon" };
-        checkRow.AddChild(bonusSpoonCheck);
-
-        // Spoons refill button
-        var spoonButton = new Button { Text = "Refill Spoons (10)" };
-        spoonButton.Pressed += () =>
-        {
-            _state = _state with { Spoons = 10, MaxSpoons = 10 };
-            RefreshUI();
-        };
-        outerVBox.AddChild(spoonButton);
-
-        // Scrollable card list
-        var scroll = new ScrollContainer
-        {
-            CustomMinimumSize = new Vector2(320, 360),
-            SizeFlagsVertical = SizeFlags.ExpandFill
-        };
-        outerVBox.AddChild(scroll);
-
-        var cardList = new VBoxContainer();
-        cardList.AddThemeConstantOverride("separation", 4);
-        cardList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        scroll.AddChild(cardList);
-
-        // All unique card templates
-        var allCards = CardDefinitions.CreateRewardPool()
-            .Concat(CardDefinitions.CreateStarterDeck())
-            .GroupBy(c => c.Name)
-            .Select(g => g.First())
-            .OrderBy(c => c.Name)
+        var playerPositions = _state.Board.Tiles
+            .Where(t => t.Owner == TileOwner.Player && !t.IsRevealed && !t.IsDestroyed
+                        && _state.Board.IsUsablePosition(t.Position))
+            .Select(t => t.Position)
             .ToList();
 
-        foreach (var template in allCards)
+        foreach (var pos in playerPositions)
         {
-            var btn = new Button
+            try
             {
-                Text = $"{template.Name} ({template.Cost})",
-                SizeFlagsHorizontal = SizeFlags.ExpandFill
-            };
-            var cardTemplate = template; // capture for closure
-            btn.Pressed += () =>
+                var result = GameRunner.ProcessReveal(_state, pos, _rng);
+                _state = result.State;
+
+                if (result.GameOver)
+                {
+                    RefreshUI();
+                    HandleGameOver();
+                    return;
+                }
+            }
+            catch (InvalidOperationException)
             {
-                var card = cardTemplate with
-                {
-                    Id = $"debug_{_debugCardIdCounter++}",
-                    Enhanced = enhancedCheck.ButtonPressed,
-                    BonusSpoon = bonusSpoonCheck.ButtonPressed
-                };
-                _state = _state with
-                {
-                    Hand = _state.Hand.Concat([card]).ToList()
-                };
-                RefreshUI();
-            };
-            cardList.AddChild(btn);
+                // Skip if reveal fails
+            }
         }
 
-        // Close button
-        var closeBtn = new Button { Text = "Close" };
-        closeBtn.Pressed += () => _debugOverlay.Visible = false;
-        outerVBox.AddChild(closeBtn);
+        RefreshUI();
     }
 
-    private void CreateOverlay()
-    {
-        // Semi-transparent dim layer
-        _overlayDim = new ColorRect
-        {
-            Color = new Color(0, 0, 0, 0.5f),
-            Visible = false
-        };
-        _overlayDim.SetAnchorsPreset(LayoutPreset.FullRect);
-        _overlayDim.MouseFilter = MouseFilterEnum.Stop;
-        AddChild(_overlayDim);
-
-        // Center container
-        var center = new CenterContainer();
-        center.SetAnchorsPreset(LayoutPreset.FullRect);
-        center.MouseFilter = MouseFilterEnum.Ignore;
-        _overlayDim.AddChild(center);
-
-        // Panel
-        var panelStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.12f, 0.12f, 0.15f, 0.95f),
-            ContentMarginLeft = 40,
-            ContentMarginRight = 40,
-            ContentMarginTop = 30,
-            ContentMarginBottom = 30,
-            CornerRadiusBottomLeft = 8,
-            CornerRadiusBottomRight = 8,
-            CornerRadiusTopLeft = 8,
-            CornerRadiusTopRight = 8
-        };
-        _overlayPanel = new PanelContainer();
-        _overlayPanel.AddThemeStyleboxOverride("panel", panelStyle);
-        center.AddChild(_overlayPanel);
-
-        _overlayVBox = new VBoxContainer();
-        _overlayVBox.AddThemeConstantOverride("separation", 16);
-        _overlayVBox.Alignment = BoxContainer.AlignmentMode.Center;
-        _overlayPanel.AddChild(_overlayVBox);
-
-        _overlayTitle = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-        _overlayTitle.AddThemeFontSizeOverride("font_size", 32);
-        _overlayVBox.AddChild(_overlayTitle);
-
-        _overlayDetails = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-        _overlayDetails.AddThemeFontSizeOverride("font_size", 16);
-        _overlayVBox.AddChild(_overlayDetails);
-
-        // Card reward / Nap selection row (hidden by default)
-        _rewardCardsRow = new HBoxContainer();
-        _rewardCardsRow.AddThemeConstantOverride("separation", 12);
-        _rewardCardsRow.Alignment = BoxContainer.AlignmentMode.Center;
-        _rewardCardsRow.Visible = false;
-        _overlayVBox.AddChild(_rewardCardsRow);
-
-        // Upgrade buttons container (hidden by default)
-        _upgradeButtonsContainer = new VBoxContainer();
-        _upgradeButtonsContainer.AddThemeConstantOverride("separation", 8);
-        _upgradeButtonsContainer.Visible = false;
-        _overlayVBox.AddChild(_upgradeButtonsContainer);
-
-        _skipRewardButton = new Button
-        {
-            Text = "Skip",
-            CustomMinimumSize = new Vector2(100, 35),
-            Visible = false
-        };
-        _skipRewardButton.Pressed += OnSkipReward;
-        _overlayVBox.AddChild(_skipRewardButton);
-
-        _playAgainButton = new Button
-        {
-            Text = "Play Again",
-            CustomMinimumSize = new Vector2(150, 40)
-        };
-        _playAgainButton.Pressed += OnPlayAgain;
-        _overlayVBox.AddChild(_playAgainButton);
-    }
+    // ───────────────────────────────────────────────
+    // Game lifecycle
+    // ───────────────────────────────────────────────
 
     private void StartNewCampaign()
     {
@@ -333,7 +156,7 @@ public partial class GameController : MarginContainer
 
         _globalClueOrder.Clear();
         _boardNode.BuildBoard(_state.Board);
-        _overlayDim.Visible = false;
+        _overlay.Hide();
         RefreshUI();
     }
 
@@ -341,7 +164,7 @@ public partial class GameController : MarginContainer
     {
         _globalClueOrder.Clear();
         _boardNode.BuildBoard(_state.Board);
-        _overlayDim.Visible = false;
+        _overlay.Hide();
         RefreshUI();
     }
 
@@ -357,13 +180,16 @@ public partial class GameController : MarginContainer
             }
         }
 
-        // Pass viewing perspective for crossout on tiles that can't be the selected owner
         TileOwner? perspective = _hud.SelectedAnnotationType;
         _boardNode.UpdateBoard(_state.Board, _globalClueOrder, perspective);
         _handDisplay.UpdateHand(_state);
         _hud.UpdateFromState(_state);
         UpdateTargetingUI();
     }
+
+    // ───────────────────────────────────────────────
+    // Targeting UI
+    // ───────────────────────────────────────────────
 
     private void UpdateTargetingUI()
     {
@@ -376,9 +202,9 @@ public partial class GameController : MarginContainer
             _targetingLabel.Text = $"{displayCard.Name}: {_targeting.TargetingMessage}";
             _handDisplay.SetSelectedCard(_targeting.TargetCard!.Id);
 
-            // Set targeting highlights based on card type
             var targetRevealed = TargetingController.TargetsRevealed(activeEffect);
-            _boardNode.SetTargetingHighlights(_state.Board, targetRevealed);
+            var areaCenterMode = TargetingController.TargetsAreaCenter(activeEffect);
+            _boardNode.SetTargetingHighlights(_state.Board, targetRevealed, areaCenterMode);
 
             foreach (var pos in _targeting.SelectedTargets)
             {
@@ -399,6 +225,16 @@ public partial class GameController : MarginContainer
         }
     }
 
+    private void CancelTargeting()
+    {
+        _targeting.Cancel();
+        UpdateTargetingUI();
+    }
+
+    // ───────────────────────────────────────────────
+    // Game-over / campaign progression
+    // ───────────────────────────────────────────────
+
     private void HandleGameOver()
     {
         if (_targeting.IsTargeting)
@@ -406,191 +242,26 @@ public partial class GameController : MarginContainer
 
         if (_state.GameStatus == GameStatus.Won)
         {
-            // Campaign progression
             _state = CampaignSystem.CompleteFloor(_state, _rng);
 
             if (_state.GamePhase == GamePhase.CampaignVictory)
-            {
-                ShowVictoryOverlay();
-            }
+                _overlay.ShowVictory(_state);
             else if (_state.GamePhase == GamePhase.CardReward)
-            {
-                ShowCardRewardOverlay();
-            }
+                _overlay.ShowCardReward(_state);
             else if (_state.GamePhase == GamePhase.UpgradeReward)
-            {
-                ShowUpgradeRewardOverlay();
-            }
+                _overlay.ShowUpgradeReward(_state);
         }
         else
         {
-            ShowLossOverlay();
+            _overlay.ShowLoss(_state);
         }
     }
 
-    private void ShowLossOverlay()
-    {
-        _overlayTitle.Text = "Game Over";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.25f));
+    // ───────────────────────────────────────────────
+    // Overlay callbacks
+    // ───────────────────────────────────────────────
 
-        var revealedPlayer = _state.Board.Tiles.Count(t =>
-            _state.Board.IsUsablePosition(t.Position) && t.IsRevealed && t.Owner == TileOwner.Player);
-        var totalPlayer = _state.Board.Tiles.Count(t =>
-            _state.Board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Player);
-
-        var floorNum = GetFloorNumber(_state.CurrentLevelId);
-        _overlayDetails.Text = $"Floor {floorNum}: Found {revealedPlayer} of {totalPlayer} tiles ({_state.TurnNumber} turns)";
-
-        _rewardCardsRow.Visible = false;
-        _upgradeButtonsContainer.Visible = false;
-        _skipRewardButton.Visible = false;
-        _playAgainButton.Visible = true;
-        _playAgainButton.Text = "Play Again";
-        _overlayDim.Visible = true;
-    }
-
-    private void ShowCardRewardOverlay()
-    {
-        var floorNum = GetFloorNumber(_state.CurrentLevelId);
-        _overlayTitle.Text = $"Floor {floorNum} Cleared!";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.4f));
-        _overlayDetails.Text = "Choose a card to add to your deck:";
-
-        ClearRewardCards();
-
-        // Add reward card buttons
-        if (_state.CardRewardOptions != null)
-        {
-            foreach (var card in _state.CardRewardOptions)
-            {
-                var cardUI = new CardUI();
-                _rewardCardsRow.AddChild(cardUI);
-                cardUI.Setup(card, true);
-                cardUI.CardClicked += OnRewardCardClicked;
-            }
-        }
-
-        _rewardCardsRow.Visible = true;
-        _upgradeButtonsContainer.Visible = false;
-        _skipRewardButton.Visible = true;
-        _playAgainButton.Visible = false;
-        _overlayDim.Visible = true;
-    }
-
-    private void ShowUpgradeRewardOverlay()
-    {
-        _overlayTitle.Text = "Upgrade Your Deck";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.85f, 0.7f, 0.15f));
-        _overlayDetails.Text = "Choose an upgrade:";
-
-        _rewardCardsRow.Visible = false;
-        ClearUpgradeButtons();
-
-        if (_state.UpgradeOptions != null)
-        {
-            foreach (var option in _state.UpgradeOptions)
-            {
-                var label = option.Type switch
-                {
-                    UpgradeType.Enhance when option.TargetCard != null =>
-                        $"Enhance: {option.TargetCard.Name}",
-                    UpgradeType.BonusSpoon when option.TargetCard != null =>
-                        $"Bonus Spoon: {option.TargetCard.Name}",
-                    UpgradeType.RemoveCard =>
-                        "Remove a Card",
-                    _ => option.Type.ToString()
-                };
-
-                var btn = new Button
-                {
-                    Text = label,
-                    CustomMinimumSize = new Vector2(250, 35)
-                };
-
-                var capturedOption = option;
-                btn.Pressed += () => OnUpgradeSelected(capturedOption);
-                _upgradeButtonsContainer.AddChild(btn);
-            }
-        }
-
-        _upgradeButtonsContainer.Visible = true;
-        _skipRewardButton.Visible = true;
-        _skipRewardButton.Text = "Skip";
-        _playAgainButton.Visible = false;
-        _overlayDim.Visible = true;
-    }
-
-    private void ShowRemoveCardOverlay()
-    {
-        _overlayTitle.Text = "Remove a Card";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.5f, 0.3f));
-        _overlayDetails.Text = "Click a card to remove it from your deck:";
-
-        ClearRewardCards();
-        ClearUpgradeButtons();
-
-        foreach (var card in _state.PersistentDeck)
-        {
-            var cardUI = new CardUI();
-            _rewardCardsRow.AddChild(cardUI);
-            cardUI.Setup(card, true);
-            cardUI.CardClicked += OnRemoveCardClicked;
-        }
-
-        _rewardCardsRow.Visible = true;
-        _upgradeButtonsContainer.Visible = false;
-        _skipRewardButton.Visible = true;
-        _skipRewardButton.Text = "Back";
-        _playAgainButton.Visible = false;
-    }
-
-    private void ShowNapOverlay()
-    {
-        _overlayTitle.Text = "Nap: Retrieve a Card";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.7f, 0.9f));
-        _overlayDetails.Text = "Choose a card from the exhaust pile:";
-
-        ClearRewardCards();
-        ClearUpgradeButtons();
-
-        foreach (var card in _state.ExhaustPile)
-        {
-            var cardUI = new CardUI();
-            _rewardCardsRow.AddChild(cardUI);
-            cardUI.Setup(card, true);
-            cardUI.CardClicked += OnNapCardClicked;
-        }
-
-        _rewardCardsRow.Visible = true;
-        _upgradeButtonsContainer.Visible = false;
-        _skipRewardButton.Visible = true;
-        _skipRewardButton.Text = "Cancel";
-        _playAgainButton.Visible = false;
-        _overlayDim.Visible = true;
-    }
-
-    private void HideNapOverlay()
-    {
-        CancelTargeting();
-        _overlayDim.Visible = false;
-        RefreshUI();
-    }
-
-    private void ShowVictoryOverlay()
-    {
-        _overlayTitle.Text = "Campaign Complete!";
-        _overlayTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.4f));
-        _overlayDetails.Text = $"Deck size: {_state.PersistentDeck.Count} cards";
-
-        _rewardCardsRow.Visible = false;
-        _upgradeButtonsContainer.Visible = false;
-        _skipRewardButton.Visible = false;
-        _playAgainButton.Visible = true;
-        _playAgainButton.Text = "Play Again";
-        _overlayDim.Visible = true;
-    }
-
-    private void OnRewardCardClicked(string cardId)
+    private void OnRewardCardSelected(string cardId)
     {
         if (_state.CardRewardOptions == null) return;
 
@@ -600,20 +271,19 @@ public partial class GameController : MarginContainer
         _state = CampaignSystem.SelectCardReward(_state, selected, _rng);
 
         if (_state.GamePhase == GamePhase.UpgradeReward)
-        {
-            ShowUpgradeRewardOverlay();
-        }
+            _overlay.ShowUpgradeReward(_state);
         else
-        {
             StartNextFloor();
-        }
     }
 
-    private void OnUpgradeSelected(UpgradeOption option)
+    private void OnUpgradeSelected(int optionIndex)
     {
+        if (_state.UpgradeOptions == null || optionIndex >= _state.UpgradeOptions.Count) return;
+        var option = _state.UpgradeOptions[optionIndex];
+
         if (option.Type == UpgradeType.RemoveCard)
         {
-            ShowRemoveCardOverlay();
+            _overlay.ShowRemoveCard(_state);
             return;
         }
 
@@ -621,7 +291,7 @@ public partial class GameController : MarginContainer
         StartNextFloor();
     }
 
-    private void OnRemoveCardClicked(string cardId)
+    private void OnRemoveCardSelected(string cardId)
     {
         var cardToRemove = _state.PersistentDeck.FirstOrDefault(c => c.Id == cardId);
         if (cardToRemove == null) return;
@@ -633,7 +303,7 @@ public partial class GameController : MarginContainer
         StartNextFloor();
     }
 
-    private void OnNapCardClicked(string cardId)
+    private void OnNapCardSelected(string cardId)
     {
         var napCard = _targeting.TargetCard;
         if (napCard == null) return;
@@ -645,7 +315,7 @@ public partial class GameController : MarginContainer
         {
             _state = CardEffectSystem.PlayNap(_state, napCard, retrievedCard, _rng);
             _targeting.Cancel();
-            _overlayDim.Visible = false;
+            _overlay.Hide();
             CheckPostCardPlay();
         }
         catch (Exception e)
@@ -654,45 +324,42 @@ public partial class GameController : MarginContainer
         }
     }
 
-    private void OnSkipReward()
+    private void OnSkipPressed()
     {
-        // Context-dependent skip button
-        if (_state.GamePhase == GamePhase.UpgradeReward && _skipRewardButton.Text == "Back")
+        switch (_overlay.CurrentMode)
         {
-            // Back from remove card sub-overlay → show upgrade options again
-            ShowUpgradeRewardOverlay();
-            return;
-        }
+            case OverlayMode.RemoveCard:
+                // "Back" from remove card → return to upgrade options
+                _overlay.ShowUpgradeReward(_state);
+                return;
 
-        if (_state.GamePhase == GamePhase.UpgradeReward)
-        {
-            _state = CampaignSystem.SkipUpgrade(_state, _rng);
-            StartNextFloor();
-            return;
-        }
-
-        if (_targeting.IsTargeting && _targeting.Mode == TargetingMode.ExhaustCardTarget)
-        {
-            // Cancel Nap
-            HideNapOverlay();
-            return;
-        }
-
-        if (_state.GamePhase == GamePhase.CardReward)
-        {
-            _state = CampaignSystem.SkipCardReward(_state, _rng);
-
-            if (_state.GamePhase == GamePhase.UpgradeReward)
-            {
-                ShowUpgradeRewardOverlay();
-            }
-            else
-            {
+            case OverlayMode.UpgradeReward:
+                _state = CampaignSystem.SkipUpgrade(_state, _rng);
                 StartNextFloor();
-            }
-            return;
+                return;
+
+            case OverlayMode.NapSelection:
+                HideNapOverlay();
+                return;
+
+            case OverlayMode.CardReward:
+                _state = CampaignSystem.SkipCardReward(_state, _rng);
+                if (_state.GamePhase == GamePhase.UpgradeReward)
+                    _overlay.ShowUpgradeReward(_state);
+                else
+                    StartNextFloor();
+                return;
         }
     }
+
+    private void OnPlayAgain()
+    {
+        StartNewCampaign();
+    }
+
+    // ───────────────────────────────────────────────
+    // Tile events
+    // ───────────────────────────────────────────────
 
     private void OnTileClicked(int row, int col)
     {
@@ -707,9 +374,8 @@ public partial class GameController : MarginContainer
             return;
         }
 
-        if (_targeting.IsTargeting) return; // In card-selection mode, ignore tile clicks
+        if (_targeting.IsTargeting) return;
 
-        // Normal reveal
         try
         {
             var result = GameRunner.ProcessReveal(_state, pos, _rng);
@@ -717,13 +383,11 @@ public partial class GameController : MarginContainer
             RefreshUI();
 
             if (result.GameOver)
-            {
                 HandleGameOver();
-            }
         }
         catch (InvalidOperationException)
         {
-            // Already revealed or invalid — silently ignore
+            // Already revealed or invalid
         }
     }
 
@@ -738,14 +402,12 @@ public partial class GameController : MarginContainer
         var areaRadius = TargetingController.GetAreaRadius(activeEffect);
         if (areaRadius > 0)
         {
-            // Enhanced Peek uses 3x3 area instead of cross
             if (activeEffect == CardEffectType.Peek && activeCard is { Enhanced: true })
                 areaRadius = 1;
             _boardNode.SetAreaHighlight(pos, areaRadius, _state.Board);
         }
         else if (TargetingController.UsesCrossArea(activeEffect))
         {
-            // Enhanced Peek is handled above as area
             if (activeEffect == CardEffectType.Peek && activeCard is { Enhanced: true })
                 _boardNode.SetAreaHighlight(pos, 1, _state.Board);
             else
@@ -761,7 +423,6 @@ public partial class GameController : MarginContainer
 
     private void OnAnnotationTypeChanged(int ownerIndex)
     {
-        // Refresh board to update perspective crossouts
         RefreshUI();
     }
 
@@ -775,7 +436,6 @@ public partial class GameController : MarginContainer
         if (tile.IsRevealed || tile.IsDestroyed) return;
         if (!_state.Board.IsUsablePosition(pos)) return;
 
-        // Cycle annotation for the currently selected owner type
         var ownerType = _hud.SelectedAnnotationType;
         _state = AnnotationSystem.CyclePlayerAnnotation(_state, pos, ownerType);
         RefreshUI();
@@ -799,12 +459,15 @@ public partial class GameController : MarginContainer
         }
     }
 
+    // ───────────────────────────────────────────────
+    // Card play
+    // ───────────────────────────────────────────────
+
     private void OnCardClicked(string cardId)
     {
         if (_state.GameStatus != GameStatus.Playing) return;
         if (_state.GamePhase != GamePhase.Playing) return;
 
-        // Mask: hand card selection mode — pick a card to play through Mask
         if (_targeting.IsTargeting && _targeting.Mode == TargetingMode.HandCardTarget)
         {
             HandleMaskCardSelection(cardId);
@@ -812,9 +475,7 @@ public partial class GameController : MarginContainer
         }
 
         if (_targeting.IsTargeting)
-        {
             CancelTargeting();
-        }
 
         var card = _state.Hand.FirstOrDefault(c => c.Id == cardId);
         if (card == null) return;
@@ -822,7 +483,6 @@ public partial class GameController : MarginContainer
         if (!DeckSystem.CanPlayCard(_state, card))
             return;
 
-        // Mask: enter hand card selection mode
         if (card.EffectType == CardEffectType.Mask)
         {
             _targeting.BeginHandCardTargeting(card);
@@ -830,17 +490,15 @@ public partial class GameController : MarginContainer
             return;
         }
 
-        // Nap: show exhaust pile overlay
         if (card.EffectType == CardEffectType.Nap)
         {
             if (_state.ExhaustPile.Count == 0)
             {
-                // Play Nap with no card to retrieve (still gets bonus spoon etc.)
                 PlayNapDirect(card, null);
                 return;
             }
             _targeting.BeginExhaustCardTargeting(card);
-            ShowNapOverlay();
+            _overlay.ShowNapSelection(_state);
             return;
         }
 
@@ -857,7 +515,6 @@ public partial class GameController : MarginContainer
 
     private void HandleMaskCardSelection(string cardId)
     {
-        // Don't allow selecting Mask itself
         if (cardId == _targeting.TargetCard!.Id) return;
 
         var selectedCard = _state.Hand.FirstOrDefault(c => c.Id == cardId);
@@ -866,15 +523,9 @@ public partial class GameController : MarginContainer
         _targeting.TransitionToMaskedCardTargeting(selectedCard);
 
         if (TargetingController.RequiresTargeting(selectedCard.EffectType))
-        {
-            // Now in tile targeting mode for the masked card
             UpdateTargetingUI();
-        }
         else
-        {
-            // Immediate effect — play Mask + selected card now
             ExecuteMaskedCard(null);
-        }
     }
 
     private void ExecuteTargetedCard()
@@ -884,7 +535,6 @@ public partial class GameController : MarginContainer
 
         if (_targeting.MaskSelectedCard != null)
         {
-            // This was a Mask → selected card flow
             ExecuteMaskedCard(targets);
         }
         else
@@ -930,9 +580,6 @@ public partial class GameController : MarginContainer
         }
     }
 
-    /// <summary>
-    /// After a card play that bypasses GameRunner (Mask, Nap), check game status.
-    /// </summary>
     private void CheckPostCardPlay()
     {
         var status = TurnSystem.CheckGameStatus(_state);
@@ -940,9 +587,7 @@ public partial class GameController : MarginContainer
         RefreshUI();
 
         if (status != GameStatus.Playing)
-        {
             HandleGameOver();
-        }
     }
 
     #nullable enable
@@ -956,9 +601,7 @@ public partial class GameController : MarginContainer
             RefreshUI();
 
             if (result.GameOver)
-            {
                 HandleGameOver();
-            }
         }
         catch (Exception e)
         {
@@ -972,9 +615,7 @@ public partial class GameController : MarginContainer
         if (_state.CurrentPlayer != PlayerType.Player) return;
 
         if (_targeting.IsTargeting)
-        {
             CancelTargeting();
-        }
 
         try
         {
@@ -983,19 +624,12 @@ public partial class GameController : MarginContainer
             RefreshUI();
 
             if (result.GameOver)
-            {
                 HandleGameOver();
-            }
         }
         catch (InvalidOperationException e)
         {
             GD.Print($"Cannot end turn: {e.Message}");
         }
-    }
-
-    private void OnPlayAgain()
-    {
-        StartNewCampaign();
     }
 
     private void OnCancelTargeting()
@@ -1008,27 +642,146 @@ public partial class GameController : MarginContainer
         CancelTargeting();
     }
 
-    private void CancelTargeting()
+    private void HideNapOverlay()
     {
-        _targeting.Cancel();
-        UpdateTargetingUI();
+        CancelTargeting();
+        _overlay.Hide();
+        RefreshUI();
     }
 
-    private void ClearRewardCards()
+    // ───────────────────────────────────────────────
+    // Debug card picker
+    // ───────────────────────────────────────────────
+
+    private void ToggleDebugCardPicker()
     {
-        foreach (var child in _rewardCardsRow.GetChildren())
+        if (_state.GameStatus != GameStatus.Playing) return;
+
+        if (_debugOverlay != null && _debugOverlay.Visible)
         {
-            child.QueueFree();
+            _debugOverlay.Visible = false;
+            return;
         }
+
+        ShowDebugCardPicker();
     }
 
-    private void ClearUpgradeButtons()
+    private void ShowDebugCardPicker()
     {
-        foreach (var child in _upgradeButtonsContainer.GetChildren())
+        if (_debugOverlay != null)
         {
-            child.QueueFree();
+            _debugOverlay.QueueFree();
+            _debugOverlay = null!;
         }
-    }
 
-    private static int GetFloorNumber(string levelId) => HUD.GetFloorNumber(levelId);
+        _debugOverlay = new ColorRect
+        {
+            Color = new Color(0, 0, 0, 0.6f),
+            Visible = true
+        };
+        _debugOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
+        _debugOverlay.MouseFilter = MouseFilterEnum.Stop;
+        AddChild(_debugOverlay);
+
+        var center = new CenterContainer();
+        center.SetAnchorsPreset(LayoutPreset.FullRect);
+        center.MouseFilter = MouseFilterEnum.Ignore;
+        _debugOverlay.AddChild(center);
+
+        var panelStyle = new StyleBoxFlat
+        {
+            BgColor = new Color(0.1f, 0.1f, 0.13f, 0.95f),
+            ContentMarginLeft = 20,
+            ContentMarginRight = 20,
+            ContentMarginTop = 16,
+            ContentMarginBottom = 16,
+            CornerRadiusBottomLeft = 8,
+            CornerRadiusBottomRight = 8,
+            CornerRadiusTopLeft = 8,
+            CornerRadiusTopRight = 8
+        };
+        var panel = new PanelContainer();
+        panel.AddThemeStyleboxOverride("panel", panelStyle);
+        panel.CustomMinimumSize = new Vector2(360, 500);
+        center.AddChild(panel);
+
+        var outerVBox = new VBoxContainer();
+        outerVBox.AddThemeConstantOverride("separation", 8);
+        panel.AddChild(outerVBox);
+
+        var title = new Label
+        {
+            Text = "Debug: Add Card to Hand",
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        title.AddThemeFontSizeOverride("font_size", 18);
+        outerVBox.AddChild(title);
+
+        var checkRow = new HBoxContainer();
+        checkRow.AddThemeConstantOverride("separation", 16);
+        checkRow.Alignment = BoxContainer.AlignmentMode.Center;
+        outerVBox.AddChild(checkRow);
+
+        var enhancedCheck = new CheckBox { Text = "Enhanced" };
+        checkRow.AddChild(enhancedCheck);
+
+        var bonusSpoonCheck = new CheckBox { Text = "Bonus Spoon" };
+        checkRow.AddChild(bonusSpoonCheck);
+
+        var spoonButton = new Button { Text = "Refill Spoons (10)" };
+        spoonButton.Pressed += () =>
+        {
+            _state = _state with { Spoons = 10, MaxSpoons = 10 };
+            RefreshUI();
+        };
+        outerVBox.AddChild(spoonButton);
+
+        var scroll = new ScrollContainer
+        {
+            CustomMinimumSize = new Vector2(320, 360),
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+        outerVBox.AddChild(scroll);
+
+        var cardList = new VBoxContainer();
+        cardList.AddThemeConstantOverride("separation", 4);
+        cardList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        scroll.AddChild(cardList);
+
+        var allCards = CardDefinitions.CreateRewardPool()
+            .Concat(CardDefinitions.CreateStarterDeck())
+            .GroupBy(c => c.Name)
+            .Select(g => g.First())
+            .OrderBy(c => c.Name)
+            .ToList();
+
+        foreach (var template in allCards)
+        {
+            var btn = new Button
+            {
+                Text = $"{template.Name} ({template.Cost})",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill
+            };
+            var cardTemplate = template;
+            btn.Pressed += () =>
+            {
+                var card = cardTemplate with
+                {
+                    Id = $"debug_{_debugCardIdCounter++}",
+                    Enhanced = enhancedCheck.ButtonPressed,
+                    BonusSpoon = bonusSpoonCheck.ButtonPressed
+                };
+                _state = _state with
+                {
+                    Hand = _state.Hand.Concat([card]).ToList()
+                };
+                RefreshUI();
+            };
+            cardList.AddChild(btn);
+        }
+
+        var closeBtn = new Button { Text = "Close" };
+        closeBtn.Pressed += () => _debugOverlay.Visible = false;
+        outerVBox.AddChild(closeBtn);
+    }
 }

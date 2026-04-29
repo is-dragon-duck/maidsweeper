@@ -48,7 +48,9 @@ public partial class TileNode : Control
 
     public override void _GuiInput(InputEvent @event)
     {
-        if (_isUnused || _isDestroyed) return;
+        if (_isDestroyed) return;
+        // Unused tiles only respond to clicks when they're valid targets (area-center targeting)
+        if (_isUnused && !_isTargetValid) return;
 
         if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
         {

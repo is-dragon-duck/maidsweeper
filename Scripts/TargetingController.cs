@@ -82,6 +82,12 @@ public class TargetingController
     };
 
     /// <summary>
+    /// Returns true if this effect targets an area center rather than a specific tile.
+    /// Area-center cards can target any board position (including unused/revealed).
+    /// </summary>
+    public static bool TargetsAreaCenter(CardEffectType effectType) => effectType == CardEffectType.Sweep;
+
+    /// <summary>
     /// Returns true if this effect type requires tile targeting (not immediate or card-selection).
     /// </summary>
     public static bool RequiresTargeting(CardEffectType effectType) => GetTargetCount(effectType) > 0;
@@ -151,10 +157,25 @@ public class TargetingController
     {
         if (!IsTargeting || Mode != TargetingMode.TileTarget) return false;
 
+        var activeEffect = GetActiveEffectType();
+
+        // Area-center targeting: any board position is valid (Sweep)
+        if (TargetsAreaCenter(activeEffect))
+        {
+            if (pos.Row < 0 || pos.Row >= state.Board.Height ||
+                pos.Col < 0 || pos.Col >= state.Board.Width)
+                return false;
+
+            if (SelectedTargets.Contains(pos)) return false;
+
+            SelectedTargets.Add(pos);
+            return true;
+        }
+
         var tile = state.Board.GetTile(pos);
 
         // Brat targets revealed tiles; everything else targets unrevealed
-        if (TargetsRevealed(GetActiveEffectType()))
+        if (TargetsRevealed(activeEffect))
         {
             if (!tile.IsRevealed) return false;
         }
@@ -163,10 +184,7 @@ public class TargetingController
             if (tile.IsRevealed) return false;
         }
 
-        // Can't target destroyed tiles
         if (tile.IsDestroyed) return false;
-
-        // Can't select same tile twice
         if (SelectedTargets.Contains(pos)) return false;
 
         SelectedTargets.Add(pos);
