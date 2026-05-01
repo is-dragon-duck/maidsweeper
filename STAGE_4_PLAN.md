@@ -77,7 +77,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Copper doesn't go below 0
 - Twirl/Brat/Deliver copper (already tested, verify integration)
 
-**Status**: Not Started
+**Status**: Complete (270 tests)
 
 ---
 

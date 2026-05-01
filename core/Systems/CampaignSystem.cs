@@ -27,6 +27,16 @@ public static class CampaignSystem
     /// </summary>
     public static GameState CompleteFloor(GameState state, Random rng)
     {
+        // Award copper from unrevealed rival tiles (1 per tile)
+        var unrevealedRivals = state.Board.Tiles
+            .Count(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed
+                        && t.Owner == TileOwner.Rival);
+        if (unrevealedRivals > 0)
+        {
+            state = state with { Copper = state.Copper + unrevealedRivals };
+        }
+
         // Apply Complaints copper penalty: lose 2 copper per stack
         if (state.ComplaintsStacks > 0)
         {
@@ -255,6 +265,7 @@ public static class CampaignSystem
             CurrentLevelId = nextLevel.LevelId,
             GamePhase = GamePhase.Playing,
             Copper = state.Copper,
+            PlayerTilesRevealedCount = state.PlayerTilesRevealedCount,
             // Reset per-floor status effects
             AcceptHelpDiscount = false,
             DistractionStacks = 0,

@@ -41,6 +41,16 @@ public partial class BoardNode : Node2D
 
         _tileNodes = new TileNode[board.Height, board.Width];
 
+        // Node2D doesn't participate in Control layout, so the parent
+        // MarginContainer's margins don't offset us. Apply manually.
+        if (GetParent() is MarginContainer margin)
+        {
+            Position = new Vector2(
+                margin.GetThemeConstant("margin_left"),
+                margin.GetThemeConstant("margin_top")
+            );
+        }
+
         for (var row = 0; row < board.Height; row++)
         {
             for (var col = 0; col < board.Width; col++)

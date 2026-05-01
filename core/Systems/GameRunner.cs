@@ -79,6 +79,13 @@ public static class GameRunner
             return new ActionResult { State = state, TurnEnded = true };
         }
 
+        // Track player tile reveals for copper economy
+        var revealedTile = state.Board.GetTile(pos);
+        if (revealedTile.IsRevealed && revealedTile.Owner == TileOwner.Player)
+        {
+            state = TrackPlayerTileReveal(state);
+        }
+
         // Consume Excuses if a noble was revealed
         state = ConsumeExcusesIfNeeded(state);
 
@@ -92,7 +99,6 @@ public static class GameRunner
         }
 
         // Check if turn should end (non-player tile revealed)
-        var revealedTile = state.Board.GetTile(pos);
         var turnEnded = TurnSystem.ShouldEndTurn(revealedTile);
 
         if (turnEnded)
@@ -118,6 +124,17 @@ public static class GameRunner
 
         var boardBefore = state.Board;
         state = CardEffectSystem.PlayCard(state, card, targets, rng);
+
+        // Track player tiles newly revealed by the card
+        foreach (var tile in state.Board.Tiles)
+        {
+            if (!state.Board.IsUsablePosition(tile.Position)) continue;
+            var before = boardBefore.GetTile(tile.Position);
+            if (!before.IsRevealed && tile.IsRevealed && tile.Owner == TileOwner.Player)
+            {
+                state = TrackPlayerTileReveal(state);
+            }
+        }
 
         // Consume Excuses if any noble was revealed by the card
         state = ConsumeExcusesIfNeeded(state);
@@ -169,6 +186,20 @@ public static class GameRunner
         state = ProcessTurnTransition(state, rng);
 
         return new ActionResult { State = state, TurnEnded = true };
+    }
+
+    /// <summary>
+    /// Tracks a player tile reveal. Awards 1 copper on every 5th cumulative reveal.
+    /// </summary>
+    private static GameState TrackPlayerTileReveal(GameState state)
+    {
+        var newCount = state.PlayerTilesRevealedCount + 1;
+        var copperGain = newCount % 5 == 0 ? 1 : 0;
+        return state with
+        {
+            PlayerTilesRevealedCount = newCount,
+            Copper = state.Copper + copperGain
+        };
     }
 
     /// <summary>

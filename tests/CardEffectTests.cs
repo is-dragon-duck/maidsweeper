@@ -1374,8 +1374,9 @@ public class CardEffectTests
 
         var newState = CampaignSystem.CompleteFloor(state, new Random(42));
 
-        // 3 stacks × 2 copper = 6 penalty, 10 - 6 = 4
-        Assert.Equal(4, newState.Copper);
+        // 3 unrevealed rival tiles → +3 copper, then 3 stacks × 2 copper = 6 penalty
+        // 10 + 3 - 6 = 7
+        Assert.Equal(7, newState.Copper);
         Assert.Equal(0, newState.ComplaintsStacks);
     }
 

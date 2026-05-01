@@ -534,4 +534,155 @@ public class CampaignSystemTests
         Assert.Equal(GamePhase.Playing, newState.GamePhase);
         Assert.Null(newState.UpgradeOptions);
     }
+
+    // ========== Copper Economy (M26) Tests ==========
+
+    private static GameState CreateCopperTestGame(int seed = 42)
+    {
+        var config = new LevelConfig
+        {
+            Width = 3, Height = 3,
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
+        };
+        var rng = new Random(seed);
+        var board = BoardSystem.CreateBoard(config, rng);
+        var deck = CardDefinitions.CreateStarterDeck();
+
+        return new GameState
+        {
+            Board = board,
+            Hand = deck.Take(5).ToList(),
+            DrawPile = deck.Skip(5).ToList(),
+            Spoons = 3,
+            MaxSpoons = 3,
+            CurrentLevelId = "level_test"
+        };
+    }
+
+    [Fact]
+    public void CopperEconomy_UnrevealedRivalTilesGrantCopper_AtFloorEnd()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            GameStatus = GameStatus.Won
+        };
+
+        // Board has 3 rival tiles, all unrevealed
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(3, newState.Copper);
+    }
+
+    [Fact]
+    public void CopperEconomy_RevealedRivalTilesDoNotGrantCopper()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            GameStatus = GameStatus.Won
+        };
+
+        // Reveal 1 rival tile
+        var rivalTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Rival);
+        var board = BoardSystem.RevealTile(state.Board, rivalTile.Position, PlayerType.Rival);
+        state = state with { Board = board };
+
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        // Only 2 unrevealed rivals remain
+        Assert.Equal(2, newState.Copper);
+    }
+
+    [Fact]
+    public void CopperEconomy_PlayerTileReveal_AwardsCopper_Every5th()
+    {
+        var state = CreateCopperTestGame() with { Copper = 0, PlayerTilesRevealedCount = 4 };
+
+        // Find an unrevealed player tile
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(42));
+
+        // 5th reveal → +1 copper
+        Assert.Equal(1, result.State.Copper);
+        Assert.Equal(5, result.State.PlayerTilesRevealedCount);
+    }
+
+    [Fact]
+    public void CopperEconomy_PlayerTileReveal_NoCopperBelow5th()
+    {
+        var state = CreateCopperTestGame() with { Copper = 0, PlayerTilesRevealedCount = 0 };
+
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(42));
+
+        Assert.Equal(0, result.State.Copper);
+        Assert.Equal(1, result.State.PlayerTilesRevealedCount);
+    }
+
+    [Fact]
+    public void CopperEconomy_RevealCountPersistsAcrossFloors()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng) with { PlayerTilesRevealedCount = 7 };
+        state = state with { GameStatus = GameStatus.Won };
+
+        state = CampaignSystem.CompleteFloor(state, new Random(99));
+        state = CampaignSystem.SkipCardReward(state, new Random(100));
+
+        Assert.Equal(7, state.PlayerTilesRevealedCount);
+    }
+
+    [Fact]
+    public void CopperEconomy_ComplaintsAndRivalTilesCalculatedTogether()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 5,
+            ComplaintsStacks = 2,
+            GameStatus = GameStatus.Won
+        };
+
+        // 3 unrevealed rivals → +3, then 2 stacks × 2 = 4 penalty
+        // 5 + 3 - 4 = 4
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(4, newState.Copper);
+    }
+
+    [Fact]
+    public void CopperEconomy_CopperCannotGoNegative()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            ComplaintsStacks = 5,
+            GameStatus = GameStatus.Won
+        };
+
+        // 3 unrevealed rivals → +3, then 5 stacks × 2 = 10 penalty
+        // Max(0, 3 - 10) = 0
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(0, newState.Copper);
+    }
+
+    [Fact]
+    public void CopperEconomy_NonPlayerTileRevealDoesNotIncrementCounter()
+    {
+        var state = CreateCopperTestGame() with { Copper = 0, PlayerTilesRevealedCount = 0 };
+
+        // Find an unrevealed rival tile
+        var rivalTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival);
+
+        var result = GameRunner.ProcessReveal(state, rivalTile.Position, new Random(42));
+
+        Assert.Equal(0, result.State.PlayerTilesRevealedCount);
+    }
 }

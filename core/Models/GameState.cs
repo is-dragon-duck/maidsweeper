@@ -13,6 +13,7 @@ public record GameState
     public GameStatus GameStatus { get; init; } = GameStatus.Playing;
     public int TurnNumber { get; init; } = 1;
     public int Copper { get; init; }
+    public int PlayerTilesRevealedCount { get; init; } // Cumulative across floors, copper every 5th
 
     // Status effects (per-floor)
     public int ComplaintsStacks { get; init; }
