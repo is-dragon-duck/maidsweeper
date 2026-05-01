@@ -174,6 +174,7 @@ public static class GameRunner
     /// <summary>
     /// Consumes Excuses stacks for any newly revealed noble tiles.
     /// Marks protected nobles so CheckGameStatus won't treat them as losses.
+    /// When Excuses drops to 0: adds 2 Complaints stacks, 1 Mollify to discard, 1 Mollify to top of draw.
     /// </summary>
     private static GameState ConsumeExcusesIfNeeded(GameState state)
     {
@@ -200,11 +201,33 @@ public static class GameRunner
 
         if (!changed) return state;
 
-        return state with
+        state = state with
         {
             Board = board with { Tiles = newTiles },
             ExcusesStacks = excusesLeft
         };
+
+        // Penalty when Excuses drops to 0: +2 Complaints, +2 Mollify (1 discard, 1 draw top)
+        if (excusesLeft == 0)
+        {
+            state = state with { ComplaintsStacks = state.ComplaintsStacks + 2 };
+
+            var mollifyDiscard = CardDefinitions.Mollify with { Id = $"mollify_{Guid.NewGuid():N}" };
+            var discardPile = state.DiscardPile.ToList();
+            discardPile.Add(mollifyDiscard);
+
+            var mollifyDraw = CardDefinitions.Mollify with { Id = $"mollify_{Guid.NewGuid():N}" };
+            var drawPile = state.DrawPile.ToList();
+            drawPile.Add(mollifyDraw); // top of draw pile = end of list (drawn first)
+
+            state = state with
+            {
+                DiscardPile = discardPile,
+                DrawPile = drawPile
+            };
+        }
+
+        return state;
     }
 
     /// <summary>

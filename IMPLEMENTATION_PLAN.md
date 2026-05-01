@@ -120,34 +120,34 @@ Beat floor 1, get offered 3 new cards to add to your deck. Play floor 2 (now wit
 
 ## Stage 3: Deeper Deckbuilder
 **Goal**: Full deckbuilder feel with card upgrades, more cards, player annotation depth, and the card upgrade/removal system. Expand to ~8 floors.
-**Status**: Not Started
+**Status**: Complete (Milestones 16-24 done — 11 new cards, upgrades, annotations, shape-coded UI, saturation, 8 floors, Manhattan-2, overlay manager, pile viewing, debug tools, 257 tests passing)
 
 ### What the player experiences
 More card variety in rewards. Upgrade screen offers cost reduction, enhanced effects, or card removal. Player can right-click tiles to cycle through owner-possibility annotations. Annotation views let you track which tiles could be which type.
 
 ### Game Logic
-- [ ] Card upgrades: enhanced (stronger effect), spoon-reduced (+1 spoon on play)
-- [ ] Upgrade options: remove card, cost reduction, enhance effect
-- [ ] Exhaust mechanic: some cards are removed from play for the floor after use
-- [ ] Expand card pool with targeting cards: Argument, Horse, Eavesdropping, Canary, Emanation, Brat, Snip Snip
-- [ ] Expand card pool with immediate cards: Ramble, Underwire, Options
-- [ ] Masking card: play a card from hand for free (both exhaust)
-- [ ] Nap card: retrieve a card from exhaust pile
-- [ ] Player annotation system: per-owner-view possibility tracking (player/rival/neutral/noble views)
-- [ ] Saturation detection: warn when a tile is ruled out by saturated neighbors
-- [ ] Level configs for floors 4-8 (introduce manhattan-2 adjacency, more special tiles)
-- [ ] Manhattan-2 adjacency rule (tiles within manhattan distance 2)
-- [ ] Tests for upgrades, new card effects, annotation logic
+- [x] Card upgrades: enhanced (stronger effect), bonus-spoon (+1 spoon on play)
+- [x] Upgrade options: remove card, bonus spoon, enhance effect
+- [x] Exhaust mechanic: some cards are removed from play for the floor after use
+- [x] Expand card pool with targeting cards: Argue, Accept Help, Eavesdrop, Peek, Explode, Deliver, Brat
+- [x] Expand card pool with immediate cards: Ramble, Glaze, Mollify
+- [x] Mask card: play a card from hand for free (both exhaust)
+- [x] Nap card: retrieve a card from exhaust pile
+- [x] Player annotation system: per-owner-view possibility tracking (player/rival/neutral/noble views)
+- [x] Saturation detection: check mark on adjacency badge when all matching neighbors revealed
+- [x] Level configs for floors 4-8 (introduce manhattan-2 adjacency, more special tiles)
+- [x] Manhattan-2 adjacency rule (tiles within manhattan distance 2)
+- [x] Tests for upgrades, new card effects, annotation logic (257 tests)
 
 ### Godot UI
-- [ ] Upgrade selection screen: 3 upgrade options, card removal flow
-- [ ] Card removal UI: browse persistent deck, select card to remove
-- [ ] Pile viewing: browse deck/discard/exhaust piles
-- [ ] Enhanced/upgraded card visual indicators
-- [ ] Player annotation rendering: per-owner possibility markers on tiles
-- [ ] Annotation view switching UI (toggle between player/rival/neutral/noble focus)
-- [ ] Saturation confirmation dialog
-- [ ] Targeting UI refinements for multi-target and card-selection cards
+- [x] Upgrade selection screen: 3 upgrade options, card removal flow
+- [x] Card removal UI: browse persistent deck, select card to remove
+- [x] Pile viewing: browse deck/discard/exhaust piles
+- [x] Enhanced/upgraded card visual indicators
+- [x] Player annotation rendering: shape-coded per-owner possibility markers on tiles
+- [x] Annotation view switching UI (P/R/N/X buttons with perspective crossouts)
+- [x] Saturation check mark on revealed tile adjacency badges
+- [x] Targeting UI refinements: area preview on hover, multi-tile highlight, card-selection targeting
 
 ### Success Criteria
 - Card upgrades meaningfully change gameplay

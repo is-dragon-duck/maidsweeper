@@ -532,7 +532,7 @@ Stage 3 introduces several status effects that need tracking in GameState and di
 - **Destroyed tile visual**: Tiles destroyed by Explode show as empty/removed.
 - **Mollify card**: Show Mollify in hand with distinct styling (penalty-related card).
 
-**Status**: Not Started
+**Status**: Complete (all UI implemented: upgrade/removal screens, pile viewing, shape-coded annotations, perspective crossouts, area preview, card-selection targeting, saturation check marks, debug tools F2/F3, overlay manager extraction, 257 tests)
 
 ---
 

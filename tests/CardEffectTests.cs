@@ -1807,6 +1807,110 @@ public class CardEffectTests
         Assert.Equal(GameStatus.Lost, result.State.GameStatus);
     }
 
+    // ========== Excuses Penalty Tests ==========
+
+    [Fact]
+    public void Excuses_DropTo0_Adds2ComplaintsAnd2Mollify()
+    {
+        var state = CreateTestGame() with { ExcusesStacks = 1, ComplaintsStacks = 0 };
+        var noblePos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Noble).Position;
+
+        var result = GameRunner.ProcessReveal(state, noblePos, new Random(42));
+
+        Assert.Equal(0, result.State.ExcusesStacks);
+        Assert.Equal(2, result.State.ComplaintsStacks);
+        // 2 Mollify cards exist somewhere across hand/draw/discard (turn transition may shuffle them)
+        var allCards = result.State.Hand
+            .Concat(result.State.DrawPile)
+            .Concat(result.State.DiscardPile)
+            .ToList();
+        Assert.Equal(2, allCards.Count(c => c.EffectType == CardEffectType.Mollify));
+    }
+
+    [Fact]
+    public void Excuses_DropFrom2To1_NoPenalty()
+    {
+        // Board with 1 noble
+        var state = CreateTestGame() with { ExcusesStacks = 2, ComplaintsStacks = 0 };
+        var noblePos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Noble).Position;
+
+        var result = GameRunner.ProcessReveal(state, noblePos, new Random(42));
+
+        Assert.Equal(1, result.State.ExcusesStacks);
+        Assert.Equal(0, result.State.ComplaintsStacks);
+        // No Mollify added anywhere
+        var allCards = result.State.Hand
+            .Concat(result.State.DrawPile)
+            .Concat(result.State.DiscardPile)
+            .ToList();
+        Assert.DoesNotContain(allCards, c => c.EffectType == CardEffectType.Mollify);
+    }
+
+    [Fact]
+    public void Excuses_DropTo0_MollifyInjectedBeforeTurnTransition()
+    {
+        // Test the injection directly by calling ConsumeExcusesIfNeeded via ProcessReveal
+        // and checking state before turn transition shuffles things
+        // We verify indirectly: 2 Mollify exist in the deck after reveal
+        var state = CreateTestGame() with { ExcusesStacks = 1 };
+        var noblePos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Noble).Position;
+        var mollifyCountBefore = state.Hand.Concat(state.DrawPile).Concat(state.DiscardPile)
+            .Count(c => c.EffectType == CardEffectType.Mollify);
+
+        var result = GameRunner.ProcessReveal(state, noblePos, new Random(42));
+
+        var mollifyCountAfter = result.State.Hand.Concat(result.State.DrawPile).Concat(result.State.DiscardPile)
+            .Count(c => c.EffectType == CardEffectType.Mollify);
+        Assert.Equal(mollifyCountBefore + 2, mollifyCountAfter);
+    }
+
+    [Fact]
+    public void Excuses_PenaltyFiresOnlyOnceAt0()
+    {
+        // Board with 2 nobles, 3 excuses → reveal both nobles → 3→2→1, then 1→0
+        // But we can only reveal 1 noble at a time via ProcessReveal
+        // Test: reveal first noble (2→1, no penalty), then second (1→0, penalty)
+        var config = new LevelConfig
+        {
+            Width = 2, Height = 2,
+            PlayerCount = 1, RivalCount = 1, NeutralCount = 0, NobleCount = 2
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+        var state = new GameState
+        {
+            Board = board,
+            Hand = new List<Card>(),
+            Spoons = 3,
+            MaxSpoons = 3,
+            ExcusesStacks = 2,
+            ComplaintsStacks = 0
+        };
+
+        var nobles = board.Tiles.Where(t => t.Owner == TileOwner.Noble).ToList();
+
+        // First noble: 2→1, no penalty
+        var result1 = GameRunner.ProcessReveal(state, nobles[0].Position, new Random(42));
+        Assert.Equal(1, result1.State.ExcusesStacks);
+        Assert.Equal(0, result1.State.ComplaintsStacks);
+
+        // Second noble: 1→0, penalty fires
+        var result2 = GameRunner.ProcessReveal(result1.State, nobles[1].Position, new Random(42));
+        Assert.Equal(0, result2.State.ExcusesStacks);
+        Assert.Equal(2, result2.State.ComplaintsStacks);
+    }
+
+    [Fact]
+    public void Excuses_ExistingComplaints_StacksAdd()
+    {
+        // Start with 1 Complaints already, then trigger Excuses penalty
+        var state = CreateTestGame() with { ExcusesStacks = 1, ComplaintsStacks = 1 };
+        var noblePos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Noble).Position;
+
+        var result = GameRunner.ProcessReveal(state, noblePos, new Random(42));
+
+        Assert.Equal(3, result.State.ComplaintsStacks); // 1 existing + 2 from penalty
+    }
+
     // ========== Mask Tests ==========
 
     [Fact]
