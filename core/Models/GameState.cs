@@ -21,6 +21,14 @@ public record GameState
     public int DistractionStacks { get; init; }
     public int ExcusesStacks { get; init; }
 
+    // Food status effects (multi-floor, decrement at floor end)
+    public int ReadStacks { get; init; }
+    public int HydrateStacks { get; init; }
+    public int AdoptStacks { get; init; }
+
+    // Recall tracking (per-floor)
+    public bool RecallPlayedThisFloor { get; init; }
+
     // Campaign state
     public IReadOnlyList<Card> PersistentDeck { get; init; } = [];
     public string CurrentLevelId { get; init; } = "";

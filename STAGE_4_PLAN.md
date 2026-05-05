@@ -117,7 +117,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - All food stacks: decrement correctly, removed at 0
 - Food cards added to reward pool
 
-**Status**: Not Started
+**Status**: Complete (286 tests)
 
 ---
 
@@ -157,7 +157,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Sarcastic: pips weighted toward non-player tiles
 - Pip rendering: red squares distinct from green circles
 
-**Status**: Not Started
+**Status**: Complete (299 tests)
 
 ---
 

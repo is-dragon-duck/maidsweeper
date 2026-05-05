@@ -195,10 +195,12 @@ public static class GameRunner
     {
         var newCount = state.PlayerTilesRevealedCount + 1;
         var copperGain = newCount % 5 == 0 ? 1 : 0;
+        var hydrateSpoon = copperGain > 0 && state.HydrateStacks > 0 ? 1 : 0;
         return state with
         {
             PlayerTilesRevealedCount = newCount,
-            Copper = state.Copper + copperGain
+            Copper = state.Copper + copperGain,
+            Spoons = state.Spoons + hydrateSpoon
         };
     }
 

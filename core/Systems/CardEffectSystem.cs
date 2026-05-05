@@ -58,6 +58,11 @@ public static class CardEffectSystem
                 CardEffectType.Mollify => ExecuteMollify(state),
                 CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
                 CardEffectType.Ramble => ExecuteRamble(state, card),
+                CardEffectType.Read => ExecuteRead(state, card),
+                CardEffectType.Hydrate => ExecuteHydrate(state, card),
+                CardEffectType.Adopt => ExecuteAdopt(state, card),
+                CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
+                CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
                 CardEffectType.Mask => throw new InvalidOperationException("Use PlayMaskedCard for Mask"),
                 CardEffectType.Nap => throw new InvalidOperationException("Use PlayNap for Nap"),
                 _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
@@ -221,6 +226,11 @@ public static class CardEffectSystem
             CardEffectType.Mollify => ExecuteMollify(state),
             CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
             CardEffectType.Ramble => ExecuteRamble(state, card),
+            CardEffectType.Read => ExecuteRead(state, card),
+            CardEffectType.Hydrate => ExecuteHydrate(state, card),
+            CardEffectType.Adopt => ExecuteAdopt(state, card),
+            CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
+            CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
         };
     }
@@ -270,7 +280,44 @@ public static class CardEffectSystem
             state = AnnotationSystem.AddClueResult(state, result.TilePosition, result);
         }
 
-        return state;
+        return state with { RecallPlayedThisFloor = true };
+    }
+
+    /// <summary>
+    /// Recall - Vague: Broader but weaker clue pips (5 targets, 8 draws).
+    /// </summary>
+    public static GameState ExecuteRecallVague(GameState state, Random rng, Card card)
+    {
+        var clueResults = ClueSystem.GenerateVagueClue(state, rng, card.Enhanced);
+
+        foreach (var result in clueResults)
+        {
+            state = AnnotationSystem.AddClueResult(state, result.TilePosition, result);
+        }
+
+        return state with { RecallPlayedThisFloor = true };
+    }
+
+    /// <summary>
+    /// Recall - Sarcastic: Anti-pips showing where tiles probably aren't yours.
+    /// Enhanced: refunds 1 spoon if any Recall was already played this floor.
+    /// </summary>
+    public static GameState ExecuteRecallSarcastic(GameState state, Random rng, Card card)
+    {
+        // Enhanced: refund 1 spoon if any Recall already played this floor
+        if (card.Enhanced && state.RecallPlayedThisFloor)
+        {
+            state = state with { Spoons = state.Spoons + 1 };
+        }
+
+        var clueResults = ClueSystem.GenerateSarcasticClue(state, rng, card.Enhanced);
+
+        foreach (var result in clueResults)
+        {
+            state = AnnotationSystem.AddClueResult(state, result.TilePosition, result);
+        }
+
+        return state with { RecallPlayedThisFloor = true };
     }
 
     /// <summary>
@@ -855,6 +902,35 @@ public static class CardEffectSystem
     {
         var newStacks = Math.Max(0, state.ComplaintsStacks - 1);
         return state with { ComplaintsStacks = newStacks };
+    }
+
+    // ========== Food Cards ==========
+
+    /// <summary>
+    /// Read: +1 card draw per turn for N floors (base 2, enhanced 3).
+    /// </summary>
+    public static GameState ExecuteRead(GameState state, Card card)
+    {
+        var stacks = card.Enhanced ? 3 : 2;
+        return state with { ReadStacks = state.ReadStacks + stacks };
+    }
+
+    /// <summary>
+    /// Hydrate: +1 spoon on copper-granting player reveals for N floors (base 2, enhanced 3).
+    /// </summary>
+    public static GameState ExecuteHydrate(GameState state, Card card)
+    {
+        var stacks = card.Enhanced ? 3 : 2;
+        return state with { HydrateStacks = state.HydrateStacks + stacks };
+    }
+
+    /// <summary>
+    /// Adopt: Reveal 1 random player tile at floor start for N floors (base 2, enhanced 3).
+    /// </summary>
+    public static GameState ExecuteAdopt(GameState state, Card card)
+    {
+        var stacks = card.Enhanced ? 3 : 2;
+        return state with { AdoptStacks = state.AdoptStacks + stacks };
     }
 
     /// <summary>

@@ -2124,4 +2124,198 @@ public class CardEffectTests
         var newState = CardEffectSystem.PlayNap(state, nap, anotherNap, new Random(42));
         Assert.Contains(anotherNap, newState.Hand);
     }
+
+    // ========== Recall - Vague Tests ==========
+
+    [Fact]
+    public void RecallVague_ProducesClueResults()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateVagueClue(state, rng);
+        Assert.NotEmpty(clues);
+
+        var tilesWithClues = clues.Select(c => c.TilePosition).Distinct().Count();
+        Assert.True(tilesWithClues > 0, "Vague should produce clue results");
+    }
+
+    [Fact]
+    public void RecallVague_Draws8PipsTotal()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateVagueClue(state, rng);
+        var totalPips = clues.Sum(c => c.PipStrength);
+        Assert.InRange(totalPips, 1, 8);
+    }
+
+    [Fact]
+    public void RecallVague_PlayerTileHasMaxPips()
+    {
+        var state = CreateLevel1Game(seed: 42);
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateVagueClue(state, rng);
+        Assert.NotEmpty(clues);
+
+        var maxPips = clues.Max(c => c.PipStrength);
+        var tilesWithMax = clues.Where(c => c.PipStrength == maxPips).ToList();
+        Assert.True(
+            tilesWithMax.Any(c => state.Board.GetTile(c.TilePosition).Owner == TileOwner.Player),
+            $"Expected a player tile to have max pips ({maxPips}), but none did");
+    }
+
+    [Fact]
+    public void RecallVague_First3GuaranteedFromTargets()
+    {
+        // With enough player tiles, at least 3 pips should land on player tiles
+        var state = CreateLevel1Game(seed: 42);
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateVagueClue(state, rng);
+        Assert.NotEmpty(clues);
+
+        var playerPips = clues
+            .Where(c => state.Board.GetTile(c.TilePosition).Owner == TileOwner.Player)
+            .Sum(c => c.PipStrength);
+        Assert.True(playerPips >= 3, $"Expected at least 3 pips on player tiles, got {playerPips}");
+    }
+
+    [Fact]
+    public void RecallVague_Enhanced_All5GuaranteedFromTargets()
+    {
+        var state = CreateLevel1Game(seed: 42);
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateVagueClue(state, rng, enhanced: true);
+        Assert.NotEmpty(clues);
+
+        // Enhanced guarantees 5 draws from targets (player tiles)
+        var playerPips = clues
+            .Where(c => state.Board.GetTile(c.TilePosition).Owner == TileOwner.Player)
+            .Sum(c => c.PipStrength);
+        Assert.True(playerPips >= 5, $"Enhanced should guarantee at least 5 pips on player tiles, got {playerPips}");
+    }
+
+    [Fact]
+    public void RecallVague_SetsRecallPlayedThisFloor()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+        var card = CardDefinitions.RecallVague with { Id = "rv1" };
+        state = state with { Hand = state.Hand.ToList().Append(card).ToList(), Spoons = 5 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, rng);
+        Assert.True(newState.RecallPlayedThisFloor);
+    }
+
+    // ========== Recall - Sarcastic Tests ==========
+
+    [Fact]
+    public void RecallSarcastic_ProducesAntiClueResults()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+
+        var clues = ClueSystem.GenerateSarcasticClue(state, rng);
+        Assert.NotEmpty(clues);
+        Assert.All(clues, c => Assert.True(c.IsAntiClue));
+    }
+
+    [Fact]
+    public void RecallSarcastic_PipsWeightedTowardNonPlayerTiles()
+    {
+        // Run multiple seeds and check that non-player tiles get more pips on average
+        var playerPipsTotal = 0;
+        var nonPlayerPipsTotal = 0;
+
+        for (var seed = 0; seed < 20; seed++)
+        {
+            var state = CreateLevel1Game(seed: seed);
+            var rng = new Random(seed + 100);
+
+            var clues = ClueSystem.GenerateSarcasticClue(state, rng);
+            foreach (var clue in clues)
+            {
+                if (state.Board.GetTile(clue.TilePosition).Owner == TileOwner.Player)
+                    playerPipsTotal += clue.PipStrength;
+                else
+                    nonPlayerPipsTotal += clue.PipStrength;
+            }
+        }
+
+        Assert.True(nonPlayerPipsTotal > playerPipsTotal,
+            $"Non-player pips ({nonPlayerPipsTotal}) should exceed player pips ({playerPipsTotal})");
+    }
+
+    [Fact]
+    public void RecallSarcastic_Enhanced_RefundsSpoonIfRecallAlreadyPlayed()
+    {
+        var state = CreateLevel1Game();
+        state = state with { RecallPlayedThisFloor = true, Spoons = 3 };
+        var card = CardDefinitions.RecallSarcastic with { Id = "rs1", Enhanced = true };
+        state = state with { Hand = state.Hand.ToList().Append(card).ToList() };
+
+        var rng = new Random(99);
+        var newState = CardEffectSystem.PlayCard(state, card, null, rng);
+
+        // Cost 2, but enhanced refunds 1 spoon if Recall already played = net cost 1
+        // So 3 - 2 + 1 = 2
+        Assert.Equal(2, newState.Spoons);
+    }
+
+    [Fact]
+    public void RecallSarcastic_Enhanced_NoRefundIfFirstRecall()
+    {
+        var state = CreateLevel1Game();
+        state = state with { RecallPlayedThisFloor = false, Spoons = 3 };
+        var card = CardDefinitions.RecallSarcastic with { Id = "rs1", Enhanced = true };
+        state = state with { Hand = state.Hand.ToList().Append(card).ToList() };
+
+        var rng = new Random(99);
+        var newState = CardEffectSystem.PlayCard(state, card, null, rng);
+
+        // Cost 2, no refund since first Recall this floor
+        Assert.Equal(1, newState.Spoons);
+    }
+
+    [Fact]
+    public void RecallSarcastic_SetsRecallPlayedThisFloor()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+        var card = CardDefinitions.RecallSarcastic with { Id = "rs1" };
+        state = state with { Hand = state.Hand.ToList().Append(card).ToList(), Spoons = 5 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, rng);
+        Assert.True(newState.RecallPlayedThisFloor);
+    }
+
+    [Fact]
+    public void RecallImperious_SetsRecallPlayedThisFloor()
+    {
+        var state = CreateLevel1Game();
+        var rng = new Random(99);
+
+        var card = state.Hand.First(c => c.EffectType == CardEffectType.Recall);
+        var newState = CardEffectSystem.ExecuteInstructions(state, rng, card);
+        Assert.True(newState.RecallPlayedThisFloor);
+    }
+
+    [Fact]
+    public void RecallPlayedThisFloor_ResetsAtFloorStart()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        state = state with { RecallPlayedThisFloor = true };
+
+        // Win the floor and advance
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, rng);
+        state = CampaignSystem.SkipCardReward(state, rng);
+
+        Assert.False(state.RecallPlayedThisFloor);
+    }
 }

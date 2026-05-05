@@ -208,6 +208,12 @@ public partial class HUD : VBoxContainer
             effects.Add($"Distraction: {state.DistractionStacks}");
         if (state.AcceptHelpDiscount)
             effects.Add("Accept Help Discount");
+        if (state.ReadStacks > 0)
+            effects.Add($"Read: {state.ReadStacks}");
+        if (state.HydrateStacks > 0)
+            effects.Add($"Hydrate: {state.HydrateStacks}");
+        if (state.AdoptStacks > 0)
+            effects.Add($"Adopt: {state.AdoptStacks}");
         _statusEffectsLabel.Text = effects.Count > 0 ? string.Join("\n", effects) : "";
         _statusEffectsLabel.Visible = effects.Count > 0;
 

@@ -48,6 +48,14 @@ public static class CampaignSystem
             };
         }
 
+        // Decrement food stacks at floor end
+        state = state with
+        {
+            ReadStacks = Math.Max(0, state.ReadStacks - 1),
+            HydrateStacks = Math.Max(0, state.HydrateStacks - 1),
+            AdoptStacks = Math.Max(0, state.AdoptStacks - 1)
+        };
+
         // Remove Mollify cards from persistent deck (they don't persist between floors)
         var cleanedDeck = state.PersistentDeck.Where(c => c.EffectType != CardEffectType.Mollify).ToList();
         state = state with { PersistentDeck = cleanedDeck };
@@ -259,7 +267,7 @@ public static class CampaignSystem
     public static GameState StartNextFloor(GameState state, LevelConfig nextLevel, Random rng)
     {
         var floorState = CreateFloorState(nextLevel, state.PersistentDeck.ToList(), rng);
-        return floorState with
+        floorState = floorState with
         {
             PersistentDeck = state.PersistentDeck,
             CurrentLevelId = nextLevel.LevelId,
@@ -270,8 +278,39 @@ public static class CampaignSystem
             AcceptHelpDiscount = false,
             DistractionStacks = 0,
             ExcusesStacks = 1,
-            ComplaintsStacks = 0
+            ComplaintsStacks = 0,
+            RecallPlayedThisFloor = false,
+            // Persist multi-floor food stacks
+            ReadStacks = state.ReadStacks,
+            HydrateStacks = state.HydrateStacks,
+            AdoptStacks = state.AdoptStacks
         };
+
+        // Adopt: reveal 1 random player tile at floor start
+        if (floorState.AdoptStacks > 0)
+        {
+            floorState = RevealRandomPlayerTile(floorState, rng);
+        }
+
+        return floorState;
+    }
+
+    /// <summary>
+    /// Reveals 1 random unrevealed player tile on the board.
+    /// </summary>
+    private static GameState RevealRandomPlayerTile(GameState state, Random rng)
+    {
+        var unrevealed = state.Board.Tiles
+            .Where(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed
+                        && t.Owner == TileOwner.Player)
+            .ToList();
+
+        if (unrevealed.Count == 0) return state;
+
+        var target = unrevealed[rng.Next(unrevealed.Count)];
+        var newBoard = BoardSystem.RevealTile(state.Board, target.Position, PlayerType.Player);
+        return state with { Board = newBoard };
     }
 
     /// <summary>

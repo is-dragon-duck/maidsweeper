@@ -46,8 +46,9 @@ public partial class TileView : Control
     private static readonly Color NeutralAdjColor = new(0.1f, 0.1f, 0.1f); // black
     private static readonly Color NobleAdjColor = new(0.4f, 0.15f, 0.5f);  // dark purple
 
-    // Single pip color for all Recall clues
-    private static readonly Color PipColor = new(0.95f, 0.7f, 0.1f); // gold
+    // Clue pip colors
+    private static readonly Color PipColor = new(0.95f, 0.7f, 0.1f); // gold (positive clues)
+    private static readonly Color AntiPipColor = new(0.9f, 0.25f, 0.25f); // red (anti-clues / Sarcastic)
 
     // Annotation marker colors
     private static readonly Color ExcludedMarkColor = new(0.9f, 0.3f, 0.3f);    // red crossout
@@ -337,6 +338,8 @@ public partial class TileView : Control
 
     /// <summary>
     /// Top-left: clue pips from Recall cards.
+    /// Green circles = positive clues (Imperious, Vague).
+    /// Red squares = anti-clues (Sarcastic) — "probably NOT yours."
     /// </summary>
     private void DrawCluePips()
     {
@@ -359,7 +362,17 @@ public partial class TileView : Control
             for (var i = 0; i < clue.PipStrength; i++)
             {
                 var x = startX + i * pipSpacing;
-                DrawCircle(new Vector2(x, y), pipRadius, PipColor);
+                if (clue.IsAntiClue)
+                {
+                    // Red square for anti-clue pips
+                    var halfSize = pipRadius * 0.85f;
+                    DrawRect(new Rect2(x - halfSize, y - halfSize, halfSize * 2, halfSize * 2), AntiPipColor);
+                }
+                else
+                {
+                    // Green/gold circle for positive clue pips
+                    DrawCircle(new Vector2(x, y), pipRadius, PipColor);
+                }
             }
         }
     }

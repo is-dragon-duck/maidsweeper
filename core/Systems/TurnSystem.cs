@@ -10,7 +10,8 @@ public static class TurnSystem
     public static GameState StartPlayerTurn(GameState state, Random rng)
     {
         state = DeckSystem.DiscardHand(state);
-        state = DeckSystem.DrawCards(state, 5, rng);
+        var drawCount = 5 + (state.ReadStacks > 0 ? 1 : 0);
+        state = DeckSystem.DrawCards(state, drawCount, rng);
 
         return state with
         {

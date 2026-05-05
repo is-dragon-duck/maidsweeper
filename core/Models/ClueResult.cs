@@ -12,4 +12,8 @@ public record ClueResult
     public required string ClueId { get; init; }
     public int ClueOrder { get; init; }
     public int ClueRowPosition { get; init; }
+    /// <summary>
+    /// True for Sarcastic Recall pips: "this tile probably ISN'T yours" (red square pips).
+    /// </summary>
+    public bool IsAntiClue { get; init; }
 }

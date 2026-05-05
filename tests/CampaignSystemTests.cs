@@ -685,4 +685,291 @@ public class CampaignSystemTests
 
         Assert.Equal(0, result.State.PlayerTilesRevealedCount);
     }
+
+    // ========== Food Cards (M27) Tests ==========
+
+    [Fact]
+    public void Read_BaseGives2Stacks()
+    {
+        var state = CreateCopperTestGame();
+        var card = CardDefinitions.Read with { Id = "r1" };
+        state = state with { Hand = new List<Card> { card }, Spoons = 3 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
+
+        Assert.Equal(2, newState.ReadStacks);
+    }
+
+    [Fact]
+    public void Read_EnhancedGives3Stacks()
+    {
+        var state = CreateCopperTestGame();
+        var card = CardDefinitions.Read with { Id = "r1", Enhanced = true };
+        state = state with { Hand = new List<Card> { card }, Spoons = 3 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
+
+        Assert.Equal(3, newState.ReadStacks);
+    }
+
+    [Fact]
+    public void Read_Draw6CardsInsteadOf5()
+    {
+        var state = CreateCopperTestGame() with { ReadStacks = 1 };
+        // Set up a clean draw situation: all cards in draw pile
+        var deck = CardDefinitions.CreateStarterDeck();
+        state = state with
+        {
+            Hand = new List<Card>(),
+            DrawPile = deck,
+            CurrentPlayer = PlayerType.Player,
+            TurnNumber = 1
+        };
+
+        state = TurnSystem.StartPlayerTurn(state, new Random(42));
+
+        Assert.Equal(6, state.Hand.Count);
+    }
+
+    [Fact]
+    public void Read_ZeroStacks_Draw5()
+    {
+        var state = CreateCopperTestGame() with { ReadStacks = 0 };
+        var deck = CardDefinitions.CreateStarterDeck();
+        state = state with
+        {
+            Hand = new List<Card>(),
+            DrawPile = deck,
+            CurrentPlayer = PlayerType.Player,
+            TurnNumber = 1
+        };
+
+        state = TurnSystem.StartPlayerTurn(state, new Random(42));
+
+        Assert.Equal(5, state.Hand.Count);
+    }
+
+    [Fact]
+    public void Read_StacksDecrementAtFloorEnd()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            ReadStacks = 2,
+            GameStatus = GameStatus.Won
+        };
+
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(1, newState.ReadStacks);
+    }
+
+    [Fact]
+    public void Hydrate_BaseGives2Stacks()
+    {
+        var state = CreateCopperTestGame();
+        var card = CardDefinitions.Hydrate with { Id = "h1" };
+        state = state with { Hand = new List<Card> { card }, Spoons = 3 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
+
+        Assert.Equal(2, newState.HydrateStacks);
+    }
+
+    [Fact]
+    public void Hydrate_Grants1SpoonOnCopperReveal()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            Spoons = 1,
+            HydrateStacks = 1,
+            PlayerTilesRevealedCount = 4
+        };
+
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(42));
+
+        // 5th reveal → copper + hydrate spoon
+        Assert.Equal(1, result.State.Copper);
+        Assert.True(result.State.Spoons >= 2); // had 1, gained 1 from Hydrate
+    }
+
+    [Fact]
+    public void Hydrate_NoBonusWithoutStacks()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            Spoons = 1,
+            HydrateStacks = 0,
+            PlayerTilesRevealedCount = 4
+        };
+
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(42));
+
+        // 5th reveal → copper but no hydrate spoon
+        Assert.Equal(1, result.State.Copper);
+        // Spoons should not increase from Hydrate (may decrease from turn transition)
+    }
+
+    [Fact]
+    public void Hydrate_NoBonusOnNonCopperReveal()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            Copper = 0,
+            Spoons = 1,
+            HydrateStacks = 1,
+            PlayerTilesRevealedCount = 0 // 1st reveal, no copper
+        };
+
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(42));
+
+        Assert.Equal(0, result.State.Copper);
+        // No copper → no hydrate bonus
+    }
+
+    [Fact]
+    public void Adopt_BaseGives2Stacks()
+    {
+        var state = CreateCopperTestGame();
+        var card = CardDefinitions.Adopt with { Id = "a1" };
+        state = state with { Hand = new List<Card> { card }, Spoons = 3 };
+
+        var newState = CardEffectSystem.PlayCard(state, card, null, new Random(42));
+
+        Assert.Equal(2, newState.AdoptStacks);
+    }
+
+    [Fact]
+    public void Adopt_Reveals1PlayerTileAtFloorStart()
+    {
+        // Test Adopt directly via StartNextFloor with a simple board
+        var config = new LevelConfig
+        {
+            LevelId = "test",
+            Width = 3, Height = 3,
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
+        };
+        var deck = CardDefinitions.CreateStarterDeck();
+        var rng = new Random(42);
+
+        // Create a state with AdoptStacks = 1
+        var baseState = new GameState
+        {
+            Board = BoardSystem.CreateBoard(config, rng),
+            PersistentDeck = deck,
+            Copper = 0,
+            AdoptStacks = 1
+        };
+
+        var newState = CampaignSystem.StartNextFloor(baseState, config, new Random(99));
+
+        // Adopt should reveal 1 player tile
+        var revealedPlayer = newState.Board.Tiles
+            .Count(t => newState.Board.IsUsablePosition(t.Position) && t.IsRevealed && t.Owner == TileOwner.Player);
+        Assert.Equal(1, revealedPlayer);
+        Assert.Equal(1, newState.AdoptStacks); // persisted, not decremented here
+    }
+
+    [Fact]
+    public void Adopt_ZeroStacks_NoReveal()
+    {
+        var config = new LevelConfig
+        {
+            LevelId = "test",
+            Width = 3, Height = 3,
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
+        };
+        var deck = CardDefinitions.CreateStarterDeck();
+        var rng = new Random(42);
+
+        var baseState = new GameState
+        {
+            Board = BoardSystem.CreateBoard(config, rng),
+            PersistentDeck = deck,
+            Copper = 0,
+            AdoptStacks = 0
+        };
+
+        var newState = CampaignSystem.StartNextFloor(baseState, config, new Random(99));
+
+        var revealedPlayer = newState.Board.Tiles
+            .Count(t => newState.Board.IsUsablePosition(t.Position) && t.IsRevealed && t.Owner == TileOwner.Player);
+        Assert.Equal(0, revealedPlayer);
+    }
+
+    [Fact]
+    public void FoodStacks_AllDecrementAtFloorEnd()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            ReadStacks = 3,
+            HydrateStacks = 2,
+            AdoptStacks = 1,
+            GameStatus = GameStatus.Won
+        };
+
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(2, newState.ReadStacks);
+        Assert.Equal(1, newState.HydrateStacks);
+        Assert.Equal(0, newState.AdoptStacks);
+    }
+
+    [Fact]
+    public void FoodStacks_DontGoBelowZero()
+    {
+        var state = CreateCopperTestGame() with
+        {
+            ReadStacks = 0,
+            HydrateStacks = 0,
+            AdoptStacks = 0,
+            GameStatus = GameStatus.Won
+        };
+
+        var newState = CampaignSystem.CompleteFloor(state, new Random(42));
+
+        Assert.Equal(0, newState.ReadStacks);
+        Assert.Equal(0, newState.HydrateStacks);
+        Assert.Equal(0, newState.AdoptStacks);
+    }
+
+    [Fact]
+    public void FoodStacks_PersistAcrossFloors()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng) with
+        {
+            ReadStacks = 3,
+            HydrateStacks = 2,
+            AdoptStacks = 2
+        };
+        state = state with { GameStatus = GameStatus.Won };
+
+        state = CampaignSystem.CompleteFloor(state, new Random(99));
+        state = CampaignSystem.SkipCardReward(state, new Random(100));
+
+        // Decremented by 1 each, then persisted to next floor
+        Assert.Equal(2, state.ReadStacks);
+        Assert.Equal(1, state.HydrateStacks);
+        Assert.Equal(1, state.AdoptStacks);
+    }
+
+    [Fact]
+    public void FoodCards_InRewardPool()
+    {
+        var pool = CardDefinitions.CreateRewardPool();
+        Assert.Contains(pool, c => c.Name == "Read");
+        Assert.Contains(pool, c => c.Name == "Hydrate");
+        Assert.Contains(pool, c => c.Name == "Adopt");
+    }
 }

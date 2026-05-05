@@ -224,6 +224,58 @@ public static class CardDefinitions
         EffectType = CardEffectType.Mollify
     };
 
+    // --- Stage 4 Food Cards ---
+
+    public static Card Read => new()
+    {
+        Id = "",
+        Name = "Read",
+        Description = "+1 card draw per turn for 2 floors.",
+        Cost = 2,
+        Exhaust = true,
+        EffectType = CardEffectType.Read
+    };
+
+    public static Card Hydrate => new()
+    {
+        Id = "",
+        Name = "Hydrate",
+        Description = "+1 spoon on copper-granting reveals for 2 floors.",
+        Cost = 2,
+        Exhaust = true,
+        EffectType = CardEffectType.Hydrate
+    };
+
+    public static Card Adopt => new()
+    {
+        Id = "",
+        Name = "Adopt",
+        Description = "Reveal 1 random player tile at floor start for 2 floors.",
+        Cost = 2,
+        Exhaust = true,
+        EffectType = CardEffectType.Adopt
+    };
+
+    // --- Stage 4 Recall Variants ---
+
+    public static Card RecallVague => new()
+    {
+        Id = "",
+        Name = "Recall - Vague",
+        Description = "Distribute clue pips broadly across 5 target tiles.",
+        Cost = 2,
+        EffectType = CardEffectType.RecallVague
+    };
+
+    public static Card RecallSarcastic => new()
+    {
+        Id = "",
+        Name = "Recall - Sarcastic",
+        Description = "Anti-pips show where tiles probably aren't yours.",
+        Cost = 2,
+        EffectType = CardEffectType.RecallSarcastic
+    };
+
     /// <summary>
     /// Creates the 10-card starter deck with unique IDs.
     /// 1x Recall - Imperious, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
@@ -257,7 +309,9 @@ public static class CardDefinitions
         [
             Brush, Sweep, Caffeinate, Breathe, LockIn, Rendezvous,
             Argue, AcceptHelp, Eavesdrop, Peek, Explode, Deliver,
-            Brat, Ramble, Glaze, Mask, Nap
+            Brat, Ramble, Glaze, Mask, Nap,
+            Read, Hydrate, Adopt,
+            RecallVague, RecallSarcastic
         ];
     }
 }
