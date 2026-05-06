@@ -101,6 +101,14 @@ public static class GameRunner
         // Check if turn should end (non-player tile revealed)
         var turnEnded = TurnSystem.ShouldEndTurn(revealedTile);
 
+        // Frilly Dress: suppress turn end for first 4 neutral reveals on turn 1
+        if (turnEnded)
+        {
+            var (frillyState, suppressed) = EquipmentSystem.ApplyFrillyDress(state, revealedTile);
+            state = frillyState;
+            if (suppressed) turnEnded = false;
+        }
+
         if (turnEnded)
         {
             state = ProcessTurnTransition(state, rng);
@@ -158,8 +166,13 @@ public static class GameRunner
                 var before = boardBefore.GetTile(tile.Position);
                 if (!before.IsRevealed && tile.IsRevealed && TurnSystem.ShouldEndTurn(tile))
                 {
-                    turnEnded = true;
-                    break;
+                    var (frillyState, suppressed) = EquipmentSystem.ApplyFrillyDress(state, tile);
+                    state = frillyState;
+                    if (!suppressed)
+                    {
+                        turnEnded = true;
+                        break;
+                    }
                 }
             }
         }

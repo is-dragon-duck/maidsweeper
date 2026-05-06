@@ -378,6 +378,11 @@ public static class CampaignSystem
             AdoptStacks = state.AdoptStacks
         };
 
+        // Equipment floor-start hooks (Coffee, Handbag, Dust Bunny)
+        floorState = EquipmentSystem.ApplyOnFloorStart(floorState, rng);
+        // Equipment turn-start hooks for turn 1 (Eyeshadow, Glasses)
+        floorState = EquipmentSystem.ApplyOnTurnStart(floorState, rng);
+
         // Adopt: reveal 1 random player tile at floor start
         if (floorState.AdoptStacks > 0)
         {

@@ -29,6 +29,9 @@ public record GameState
     // Recall tracking (per-floor)
     public bool RecallPlayedThisFloor { get; init; }
 
+    // Equipment tracking (per-floor)
+    public int Turn1NeutralReveals { get; init; }
+
     // Campaign state
     public IReadOnlyList<Card> PersistentDeck { get; init; } = [];
     public IReadOnlyList<Equipment> Equipment { get; init; } = [];

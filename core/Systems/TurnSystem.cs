@@ -10,15 +10,17 @@ public static class TurnSystem
     public static GameState StartPlayerTurn(GameState state, Random rng)
     {
         state = DeckSystem.DiscardHand(state);
-        var drawCount = 5 + (state.ReadStacks > 0 ? 1 : 0);
+        var drawCount = EquipmentSystem.GetTurnDrawCount(state);
         state = DeckSystem.DrawCards(state, drawCount, rng);
 
-        return state with
+        state = state with
         {
             Spoons = state.MaxSpoons,
             CurrentPlayer = PlayerType.Player,
             TurnNumber = state.TurnNumber + 1
         };
+
+        return EquipmentSystem.ApplyOnTurnStart(state, rng);
     }
 
     /// <summary>

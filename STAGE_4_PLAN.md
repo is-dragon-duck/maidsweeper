@@ -210,7 +210,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Eyeshadow: +1 Distraction per turn
 - Glasses: Tingle annotation applied at turn start without card cost
 
-**Status**: Not Started
+**Status**: Complete (324 tests)
 
 ---
 
