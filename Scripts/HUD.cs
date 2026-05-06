@@ -27,6 +27,7 @@ public partial class HUD : VBoxContainer
     private Label _statusLabel = null!;
     private Label _copperLabel = null!;
     private Label _floorLabel = null!;
+    private Label _adjacencyLabel = null!;
     private Label _statusEffectsLabel = null!;
     private Button _endTurnButton = null!;
 
@@ -66,6 +67,12 @@ public partial class HUD : VBoxContainer
         _floorLabel = new Label { Text = "Floor 1/8" };
         _floorLabel.AddThemeFontSizeOverride("font_size", 14);
         AddChild(_floorLabel);
+
+        _adjacencyLabel = new Label { Text = "" };
+        _adjacencyLabel.AddThemeFontSizeOverride("font_size", 12);
+        _adjacencyLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.85f, 1.0f));
+        _adjacencyLabel.Visible = false;
+        AddChild(_adjacencyLabel);
 
         AddChild(new HSeparator());
 
@@ -178,6 +185,17 @@ public partial class HUD : VBoxContainer
 
         var floorNum = GetFloorNumber(state.CurrentLevelId);
         _floorLabel.Text = $"Floor {floorNum}/8";
+
+        // Adjacency indicator: only show when non-default (Manhattan-2)
+        if (state.Board.AdjacencyRule == AdjacencyRule.Manhattan2)
+        {
+            _adjacencyLabel.Text = "Adjacency: Manhattan-2";
+            _adjacencyLabel.Visible = true;
+        }
+        else
+        {
+            _adjacencyLabel.Visible = false;
+        }
 
         _turnLabel.Text = state.CurrentPlayer == PlayerType.Player ? "Your Turn" : "Rival Turn";
 

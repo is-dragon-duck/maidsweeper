@@ -1,0 +1,9 @@
+namespace Maidsweeper.Core.Models;
+
+public record Equipment
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public string Description { get; init; } = "";
+    public required EquipmentEffectType EffectType { get; init; }
+}

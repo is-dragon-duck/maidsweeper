@@ -31,10 +31,12 @@ public record GameState
 
     // Campaign state
     public IReadOnlyList<Card> PersistentDeck { get; init; } = [];
+    public IReadOnlyList<Equipment> Equipment { get; init; } = [];
     public string CurrentLevelId { get; init; } = "";
     public GamePhase GamePhase { get; init; } = GamePhase.Playing;
     public IReadOnlyList<Card>? CardRewardOptions { get; init; }
     public IReadOnlyList<UpgradeOption>? UpgradeOptions { get; init; }
+    public IReadOnlyList<Equipment>? EquipmentOptions { get; init; }
 }
 
 /// <summary>

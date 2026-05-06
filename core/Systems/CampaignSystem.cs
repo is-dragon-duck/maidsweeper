@@ -63,7 +63,7 @@ public static class CampaignSystem
         var config = LevelConfigs.GetById(state.CurrentLevelId);
         var uponFinish = config?.UponFinish;
 
-        if (uponFinish == null || (!uponFinish.CardReward && !uponFinish.UpgradeReward && uponFinish.NextLevelId == null))
+        if (uponFinish == null || (!uponFinish.CardReward && !uponFinish.UpgradeReward && !uponFinish.EquipmentReward && uponFinish.NextLevelId == null))
         {
             return state with { GamePhase = GamePhase.CampaignVictory };
         }
@@ -81,6 +81,11 @@ public static class CampaignSystem
         if (uponFinish.UpgradeReward)
         {
             return TransitionToUpgradeReward(state, rng);
+        }
+
+        if (uponFinish.EquipmentReward)
+        {
+            return TransitionToEquipmentReward(state, rng);
         }
 
         // No reward, advance directly
@@ -134,7 +139,7 @@ public static class CampaignSystem
     }
 
     /// <summary>
-    /// After card reward (selected or skipped), check if upgrade reward follows.
+    /// After card reward (selected or skipped), check if upgrade or equipment reward follows.
     /// </summary>
     private static GameState TransitionAfterCardReward(GameState state, Random rng)
     {
@@ -142,6 +147,25 @@ public static class CampaignSystem
         if (config?.UponFinish?.UpgradeReward == true)
         {
             return TransitionToUpgradeReward(state, rng);
+        }
+
+        if (config?.UponFinish?.EquipmentReward == true)
+        {
+            return TransitionToEquipmentReward(state, rng);
+        }
+
+        return AdvanceToNextFloor(state, rng);
+    }
+
+    /// <summary>
+    /// After upgrade reward (selected or skipped), check if equipment reward follows.
+    /// </summary>
+    private static GameState TransitionAfterUpgradeReward(GameState state, Random rng)
+    {
+        var config = LevelConfigs.GetById(state.CurrentLevelId);
+        if (config?.UponFinish?.EquipmentReward == true)
+        {
+            return TransitionToEquipmentReward(state, rng);
         }
 
         return AdvanceToNextFloor(state, rng);
@@ -227,7 +251,7 @@ public static class CampaignSystem
             UpgradeOptions = null
         };
 
-        return AdvanceToNextFloor(state, rng);
+        return TransitionAfterUpgradeReward(state, rng);
     }
 
     /// <summary>
@@ -236,6 +260,73 @@ public static class CampaignSystem
     public static GameState SkipUpgrade(GameState state, Random rng)
     {
         state = state with { UpgradeOptions = null };
+        return TransitionAfterUpgradeReward(state, rng);
+    }
+
+    /// <summary>
+    /// Transitions to the equipment reward phase with 3 generated options.
+    /// </summary>
+    private static GameState TransitionToEquipmentReward(GameState state, Random rng)
+    {
+        var options = GenerateEquipmentOptions(state.Equipment, rng);
+        if (options.Count == 0)
+        {
+            // No equipment available — skip phase entirely
+            return AdvanceToNextFloor(state, rng);
+        }
+
+        return state with
+        {
+            GamePhase = GamePhase.EquipmentReward,
+            EquipmentOptions = options
+        };
+    }
+
+    /// <summary>
+    /// Generates up to 3 equipment offerings, excluding already-owned items.
+    /// </summary>
+    public static List<Equipment> GenerateEquipmentOptions(IReadOnlyList<Equipment> owned, Random rng)
+    {
+        var ownedTypes = owned.Select(e => e.EffectType).ToHashSet();
+        var pool = EquipmentDefinitions.CreateOfferingPool()
+            .Where(e => !ownedTypes.Contains(e.EffectType))
+            .ToList();
+
+        var id = 0;
+        string nextId() => $"equipment_{id++}_{rng.Next(10000)}";
+
+        // Shuffle and pick up to 3
+        for (var i = pool.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
+        }
+
+        return pool.Take(3).Select(e => e with { Id = nextId() }).ToList();
+    }
+
+    /// <summary>
+    /// Player selects an equipment offering — adds it to their inventory.
+    /// </summary>
+    public static GameState SelectEquipment(GameState state, Equipment selected, Random rng)
+    {
+        var equipment = state.Equipment.ToList();
+        equipment.Add(selected);
+        state = state with
+        {
+            Equipment = equipment,
+            EquipmentOptions = null
+        };
+
+        return AdvanceToNextFloor(state, rng);
+    }
+
+    /// <summary>
+    /// Player skips the equipment reward.
+    /// </summary>
+    public static GameState SkipEquipment(GameState state, Random rng)
+    {
+        state = state with { EquipmentOptions = null };
         return AdvanceToNextFloor(state, rng);
     }
 
@@ -270,6 +361,7 @@ public static class CampaignSystem
         floorState = floorState with
         {
             PersistentDeck = state.PersistentDeck,
+            Equipment = state.Equipment,
             CurrentLevelId = nextLevel.LevelId,
             GamePhase = GamePhase.Playing,
             Copper = state.Copper,

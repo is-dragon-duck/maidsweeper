@@ -182,7 +182,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Skip equipment works
 - Offering generates 3 distinct items
 
-**Status**: Not Started
+**Status**: Complete (308 tests)
 
 ---
 

@@ -126,7 +126,8 @@ public partial class BoardNode : Node2D
                 var tile = board.GetTile(pos);
                 bool isValidTarget;
                 if (areaCenterMode)
-                    isValidTarget = !board.UnusedPositions.Contains(pos);
+                    // Sweep can be centered anywhere in-bounds, including unused positions.
+                    isValidTarget = true;
                 else if (targetRevealed)
                     isValidTarget = board.IsUsablePosition(pos) && tile.IsRevealed && !tile.IsDestroyed;
                 else

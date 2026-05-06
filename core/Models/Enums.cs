@@ -20,6 +20,7 @@ public enum GamePhase
     Playing,
     CardReward,
     UpgradeReward,
+    EquipmentReward,
     FloorComplete,
     CampaignVictory
 }
@@ -84,4 +85,23 @@ public enum AdjacencyRule
 {
     King,       // 8-directional (default)
     Manhattan2  // All positions within Manhattan distance ≤ 2 (up to 12 neighbors)
+}
+
+public enum EquipmentEffectType
+{
+    // --- Stage 4 Set 1 (simple passives, M30) ---
+    Coffee,        // +1 max spoon, -1 card draw (except turn 1)
+    FrillyDress,   // First 4 neutral reveals on turn 1 don't end turn
+    DustBunny,     // Reveal 1 random player tile at floor start
+    Handbag,       // Draw +2 cards on first turn
+    Eyeshadow,     // +1 Distraction stack at turn start
+    Glasses,       // Free Tingle effect at turn start
+
+    // --- Stage 4 Set 2 (deck modifiers, M31) ---
+    Bleach,        // Enhance all Spritz/Sweep/Brush in deck (and future ones)
+    Estrogen,      // Replace 3 random non-enhanced cards with bonus-spoon versions
+    Progesterone,  // Replace 3 random non-bonus-spoon cards with enhanced versions
+    CrystalBall,   // Add 3 doubly-upgraded Tingles to persistent deck
+    Boots,         // Replace 1 random card with a doubly-upgraded reward card
+    Tiara          // Double all copper rewards
 }
