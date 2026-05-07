@@ -273,7 +273,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Enhance randomly enhances a card
 - Equipment slots exclude already-owned items
 
-**Status**: Not Started
+**Status**: Complete (355 tests)
 
 ---
 

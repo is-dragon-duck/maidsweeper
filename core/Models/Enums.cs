@@ -21,8 +21,20 @@ public enum GamePhase
     CardReward,
     UpgradeReward,
     EquipmentReward,
+    Shop,
     FloorComplete,
     CampaignVictory
+}
+
+public enum ShopSlotKind
+{
+    RegularCard,
+    BonusSpoonCard,
+    EnhancedCard,
+    Equipment,
+    RemoveCard,
+    VisitingBunny,
+    Enhance
 }
 
 public enum UpgradeType

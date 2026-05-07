@@ -63,7 +63,9 @@ public static class CampaignSystem
         var config = LevelConfigs.GetById(state.CurrentLevelId);
         var uponFinish = config?.UponFinish;
 
-        if (uponFinish == null || (!uponFinish.CardReward && !uponFinish.UpgradeReward && !uponFinish.EquipmentReward && uponFinish.NextLevelId == null))
+        if (uponFinish == null || (!uponFinish.CardReward && !uponFinish.UpgradeReward
+                                   && !uponFinish.EquipmentReward && !uponFinish.Shop
+                                   && uponFinish.NextLevelId == null))
         {
             return state with { GamePhase = GamePhase.CampaignVictory };
         }
@@ -86,6 +88,11 @@ public static class CampaignSystem
         if (uponFinish.EquipmentReward)
         {
             return TransitionToEquipmentReward(state, rng);
+        }
+
+        if (uponFinish.Shop)
+        {
+            return ShopSystem.EnterShop(state, rng);
         }
 
         // No reward, advance directly
@@ -142,7 +149,7 @@ public static class CampaignSystem
     }
 
     /// <summary>
-    /// After card reward (selected or skipped), check if upgrade or equipment reward follows.
+    /// After card reward (selected or skipped), check if upgrade, equipment, or shop follows.
     /// </summary>
     private static GameState TransitionAfterCardReward(GameState state, Random rng)
     {
@@ -157,11 +164,16 @@ public static class CampaignSystem
             return TransitionToEquipmentReward(state, rng);
         }
 
+        if (config?.UponFinish?.Shop == true)
+        {
+            return ShopSystem.EnterShop(state, rng);
+        }
+
         return AdvanceToNextFloor(state, rng);
     }
 
     /// <summary>
-    /// After upgrade reward (selected or skipped), check if equipment reward follows.
+    /// After upgrade reward (selected or skipped), check if equipment or shop follows.
     /// </summary>
     private static GameState TransitionAfterUpgradeReward(GameState state, Random rng)
     {
@@ -169,6 +181,25 @@ public static class CampaignSystem
         if (config?.UponFinish?.EquipmentReward == true)
         {
             return TransitionToEquipmentReward(state, rng);
+        }
+
+        if (config?.UponFinish?.Shop == true)
+        {
+            return ShopSystem.EnterShop(state, rng);
+        }
+
+        return AdvanceToNextFloor(state, rng);
+    }
+
+    /// <summary>
+    /// After equipment reward (selected or skipped), check if shop follows.
+    /// </summary>
+    private static GameState TransitionAfterEquipmentReward(GameState state, Random rng)
+    {
+        var config = LevelConfigs.GetById(state.CurrentLevelId);
+        if (config?.UponFinish?.Shop == true)
+        {
+            return ShopSystem.EnterShop(state, rng);
         }
 
         return AdvanceToNextFloor(state, rng);
@@ -325,7 +356,7 @@ public static class CampaignSystem
         // One-shot deck modifications from this equipment (Bleach, Estrogen, etc.)
         state = EquipmentSystem.ApplyOnAcquisition(state, selected, rng);
 
-        return AdvanceToNextFloor(state, rng);
+        return TransitionAfterEquipmentReward(state, rng);
     }
 
     /// <summary>
@@ -334,6 +365,15 @@ public static class CampaignSystem
     public static GameState SkipEquipment(GameState state, Random rng)
     {
         state = state with { EquipmentOptions = null };
+        return TransitionAfterEquipmentReward(state, rng);
+    }
+
+    /// <summary>
+    /// Player leaves the shop (after spending however much copper they wanted).
+    /// </summary>
+    public static GameState LeaveShop(GameState state, Random rng)
+    {
+        state = ShopSystem.ExitShop(state);
         return AdvanceToNextFloor(state, rng);
     }
 
@@ -382,7 +422,10 @@ public static class CampaignSystem
             // Persist multi-floor food stacks
             ReadStacks = state.ReadStacks,
             HydrateStacks = state.HydrateStacks,
-            AdoptStacks = state.AdoptStacks
+            AdoptStacks = state.AdoptStacks,
+            // Persist shop state
+            ShopVisitCount = state.ShopVisitCount,
+            VisitingBunnyPendingReveals = state.VisitingBunnyPendingReveals
         };
 
         // Equipment floor-start hooks (Coffee, Handbag, Dust Bunny)
@@ -394,6 +437,17 @@ public static class CampaignSystem
         if (floorState.AdoptStacks > 0)
         {
             floorState = RevealRandomPlayerTile(floorState, rng);
+        }
+
+        // Visiting Bunny: reveal one player tile per pending reveal (purchased last shop)
+        if (floorState.VisitingBunnyPendingReveals > 0)
+        {
+            var pending = floorState.VisitingBunnyPendingReveals;
+            for (var i = 0; i < pending; i++)
+            {
+                floorState = RevealRandomPlayerTile(floorState, rng);
+            }
+            floorState = floorState with { VisitingBunnyPendingReveals = 0 };
         }
 
         return floorState;

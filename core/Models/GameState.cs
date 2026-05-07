@@ -32,6 +32,10 @@ public record GameState
     // Equipment tracking (per-floor)
     public int Turn1NeutralReveals { get; init; }
 
+    // Shop tracking
+    public int ShopVisitCount { get; init; }
+    public int VisitingBunnyPendingReveals { get; init; }
+
     // Campaign state
     public IReadOnlyList<Card> PersistentDeck { get; init; } = [];
     public IReadOnlyList<Equipment> Equipment { get; init; } = [];
@@ -40,6 +44,7 @@ public record GameState
     public IReadOnlyList<Card>? CardRewardOptions { get; init; }
     public IReadOnlyList<UpgradeOption>? UpgradeOptions { get; init; }
     public IReadOnlyList<Equipment>? EquipmentOptions { get; init; }
+    public IReadOnlyList<ShopSlot>? ShopSlots { get; init; }
 }
 
 /// <summary>

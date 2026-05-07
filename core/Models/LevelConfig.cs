@@ -12,6 +12,7 @@ public record UponFinishConfig
     public bool CardReward { get; init; }
     public bool UpgradeReward { get; init; }
     public bool EquipmentReward { get; init; }
+    public bool Shop { get; init; }
     public string? NextLevelId { get; init; }
 }
 
