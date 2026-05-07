@@ -285,4 +285,276 @@ public class EquipmentSystemTests
         // Coffee still owned
         Assert.Single(state.Equipment);
     }
+
+    // ===========================================================
+    // M31: Set 2 — Deck Modifiers
+    // ===========================================================
+
+    private static GameState BuildAcquisitionState(IReadOnlyList<Card> deck)
+    {
+        var rng = new Random(1);
+        var board = BoardSystem.CreateBoard(LevelConfigs.Level1, rng);
+        return new GameState
+        {
+            Board = board,
+            PersistentDeck = deck,
+            CurrentLevelId = "level1"
+        };
+    }
+
+    [Fact]
+    public void Bleach_EnhancesAllSpritzSweepBrushInDeck()
+    {
+        var deck = new List<Card>
+        {
+            CardDefinitions.Spritz with { Id = "s1" },
+            CardDefinitions.Sweep with { Id = "sw1" },
+            CardDefinitions.Brush with { Id = "br1" },
+            CardDefinitions.Tingle with { Id = "t1" }, // not bleachable
+            CardDefinitions.Twirl with { Id = "tw1" }  // not bleachable
+        };
+        var state = BuildAcquisitionState(deck);
+        var bleach = EquipmentDefinitions.Bleach with { Id = "bl1" };
+
+        state = EquipmentSystem.ApplyOnAcquisition(state, bleach, new Random(7));
+
+        Assert.True(state.PersistentDeck.First(c => c.Id == "s1").Enhanced);
+        Assert.True(state.PersistentDeck.First(c => c.Id == "sw1").Enhanced);
+        Assert.True(state.PersistentDeck.First(c => c.Id == "br1").Enhanced);
+        Assert.False(state.PersistentDeck.First(c => c.Id == "t1").Enhanced);
+        Assert.False(state.PersistentDeck.First(c => c.Id == "tw1").Enhanced);
+    }
+
+    [Fact]
+    public void Bleach_AutoEnhancesFutureSpritzAddedToDeck()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        state = state with
+        {
+            Equipment = new List<Equipment> { EquipmentDefinitions.Bleach with { Id = "bl1" } }
+        };
+
+        var spritzReward = CardDefinitions.Spritz with { Id = "future_spritz" };
+        state = CampaignSystem.SelectCardReward(
+            state with { GamePhase = GamePhase.CardReward, GameStatus = GameStatus.Won },
+            spritzReward,
+            new Random(99));
+
+        var added = state.PersistentDeck.First(c => c.Id == "future_spritz");
+        Assert.True(added.Enhanced);
+    }
+
+    [Fact]
+    public void Bleach_DoesNotAutoEnhanceNonBleachableRewards()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        state = state with
+        {
+            Equipment = new List<Equipment> { EquipmentDefinitions.Bleach with { Id = "bl1" } }
+        };
+
+        var rendezvous = CardDefinitions.Rendezvous with { Id = "future_r" };
+        state = CampaignSystem.SelectCardReward(
+            state with { GamePhase = GamePhase.CardReward, GameStatus = GameStatus.Won },
+            rendezvous,
+            new Random(99));
+
+        var added = state.PersistentDeck.First(c => c.Id == "future_r");
+        Assert.False(added.Enhanced);
+    }
+
+    [Fact]
+    public void Estrogen_Adds_BonusSpoon_To_3_NonEnhanced_Cards()
+    {
+        var deck = Enumerable.Range(0, 10)
+            .Select(i => CardDefinitions.Spritz with { Id = $"s{i}" })
+            .ToList<Card>();
+        var state = BuildAcquisitionState(deck);
+        var estrogen = EquipmentDefinitions.Estrogen with { Id = "e1" };
+
+        state = EquipmentSystem.ApplyOnAcquisition(state, estrogen, new Random(7));
+
+        Assert.Equal(3, state.PersistentDeck.Count(c => c.BonusSpoon));
+    }
+
+    [Fact]
+    public void Estrogen_DoesNotPickEnhancedCards()
+    {
+        // Mix of 5 enhanced and 3 non-enhanced — Estrogen should pick from the 3
+        var deck = new List<Card>
+        {
+            CardDefinitions.Spritz with { Id = "e1", Enhanced = true },
+            CardDefinitions.Spritz with { Id = "e2", Enhanced = true },
+            CardDefinitions.Spritz with { Id = "e3", Enhanced = true },
+            CardDefinitions.Spritz with { Id = "e4", Enhanced = true },
+            CardDefinitions.Spritz with { Id = "e5", Enhanced = true },
+            CardDefinitions.Spritz with { Id = "n1" },
+            CardDefinitions.Spritz with { Id = "n2" },
+            CardDefinitions.Spritz with { Id = "n3" }
+        };
+        var state = BuildAcquisitionState(deck);
+        state = EquipmentSystem.ApplyOnAcquisition(state, EquipmentDefinitions.Estrogen, new Random(7));
+
+        // Enhanced cards untouched
+        foreach (var id in new[] { "e1", "e2", "e3", "e4", "e5" })
+            Assert.False(state.PersistentDeck.First(c => c.Id == id).BonusSpoon);
+
+        // All 3 non-enhanced gained BonusSpoon
+        foreach (var id in new[] { "n1", "n2", "n3" })
+            Assert.True(state.PersistentDeck.First(c => c.Id == id).BonusSpoon);
+    }
+
+    [Fact]
+    public void Progesterone_Enhances_3_NonBonusSpoon_Cards()
+    {
+        var deck = Enumerable.Range(0, 10)
+            .Select(i => CardDefinitions.Spritz with { Id = $"s{i}" })
+            .ToList<Card>();
+        var state = BuildAcquisitionState(deck);
+        var progesterone = EquipmentDefinitions.Progesterone with { Id = "p1" };
+
+        state = EquipmentSystem.ApplyOnAcquisition(state, progesterone, new Random(7));
+
+        Assert.Equal(3, state.PersistentDeck.Count(c => c.Enhanced));
+    }
+
+    [Fact]
+    public void CrystalBall_Adds3_DoublyUpgraded_Tingles()
+    {
+        var deck = new List<Card> { CardDefinitions.Spritz with { Id = "s1" } };
+        var state = BuildAcquisitionState(deck);
+
+        state = EquipmentSystem.ApplyOnAcquisition(state, EquipmentDefinitions.CrystalBall, new Random(7));
+
+        Assert.Equal(4, state.PersistentDeck.Count); // 1 original + 3 added
+
+        var tingles = state.PersistentDeck
+            .Where(c => c.EffectType == CardEffectType.Tingle)
+            .ToList();
+        Assert.Equal(3, tingles.Count);
+        Assert.All(tingles, t =>
+        {
+            Assert.True(t.Enhanced);
+            Assert.True(t.BonusSpoon);
+        });
+    }
+
+    [Fact]
+    public void Boots_Replaces1Card_WithDoublyUpgradedRandomReward()
+    {
+        var deck = Enumerable.Range(0, 5)
+            .Select(i => CardDefinitions.Spritz with { Id = $"s{i}" })
+            .ToList<Card>();
+        var state = BuildAcquisitionState(deck);
+
+        state = EquipmentSystem.ApplyOnAcquisition(state, EquipmentDefinitions.Boots, new Random(7));
+
+        Assert.Equal(5, state.PersistentDeck.Count); // size unchanged
+
+        // Exactly one card was added with Boots ID prefix and is doubly upgraded
+        var added = state.PersistentDeck.Where(c => c.Id.StartsWith("boots_")).ToList();
+        Assert.Single(added);
+        Assert.True(added[0].Enhanced);
+        Assert.True(added[0].BonusSpoon);
+
+        // Exactly one of the original Spritz cards was removed
+        Assert.Equal(4, state.PersistentDeck.Count(c => c.Id.StartsWith("s")));
+    }
+
+    // ========== Tiara ==========
+
+    [Fact]
+    public void Tiara_DoublesCopperFromUnrevealedRivalsAtFloorEnd()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        state = state with
+        {
+            Equipment = new List<Equipment> { EquipmentDefinitions.Tiara with { Id = "t1" } },
+            GameStatus = GameStatus.Won,
+            Copper = 0
+        };
+
+        // Count remaining unrevealed rivals to compute expected
+        var unrevealedRivals = state.Board.Tiles
+            .Count(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed
+                        && t.Owner == TileOwner.Rival);
+
+        var newState = CampaignSystem.CompleteFloor(state, new Random(99));
+
+        Assert.Equal(unrevealedRivals * 2, newState.Copper);
+    }
+
+    [Fact]
+    public void Tiara_DoublesCopperFrom5thPlayerReveal()
+    {
+        // Build a small board state where Tiara is owned and 4 player tiles already revealed
+        var config = new LevelConfig
+        {
+            Width = 3, Height = 3,
+            PlayerCount = 3, RivalCount = 3, NeutralCount = 2, NobleCount = 1
+        };
+        var rng = new Random(42);
+        var board = BoardSystem.CreateBoard(config, rng);
+        var deck = CardDefinitions.CreateStarterDeck();
+        var state = new GameState
+        {
+            Board = board,
+            Hand = deck.Take(5).ToList(),
+            DrawPile = deck.Skip(5).ToList(),
+            Spoons = 3,
+            Equipment = new List<Equipment> { EquipmentDefinitions.Tiara with { Id = "t1" } },
+            PlayerTilesRevealedCount = 4,
+            Copper = 0,
+            CurrentLevelId = "level1"
+        };
+
+        var playerTile = state.Board.Tiles
+            .First(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Player);
+
+        var result = GameRunner.ProcessReveal(state, playerTile.Position, new Random(99));
+
+        // 5th reveal usually grants 1 copper; with Tiara → 2
+        Assert.Equal(2, result.State.Copper);
+    }
+
+    [Fact]
+    public void Tiara_DoublesTwirlCopper()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        var twirl = CardDefinitions.Twirl with { Id = "tw1" };
+        state = state with
+        {
+            Equipment = new List<Equipment> { EquipmentDefinitions.Tiara with { Id = "t1" } },
+            Hand = new List<Card> { twirl },
+            Spoons = 3,
+            Copper = 0
+        };
+
+        var newState = CardEffectSystem.PlayCard(state, twirl, null, new Random(7));
+
+        Assert.Equal(6, newState.Copper); // base 3 × 2 Tiara
+    }
+
+    [Fact]
+    public void Tiara_DoesNotAffectCopperWhenNotOwned()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        var twirl = CardDefinitions.Twirl with { Id = "tw1" };
+        state = state with
+        {
+            Hand = new List<Card> { twirl },
+            Spoons = 3,
+            Copper = 0
+        };
+
+        var newState = CardEffectSystem.PlayCard(state, twirl, null, new Random(7));
+
+        Assert.Equal(3, newState.Copper); // base 3, no Tiara
+    }
 }

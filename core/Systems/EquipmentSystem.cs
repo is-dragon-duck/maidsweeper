@@ -101,4 +101,143 @@ public static class EquipmentSystem
         var newBoard = BoardSystem.RevealTile(state.Board, target.Position, PlayerType.Player);
         return state with { Board = newBoard };
     }
+
+    // ===========================================================
+    // M31: Set 2 — Deck Modifiers (on-acquisition + Tiara passive)
+    // ===========================================================
+
+    /// <summary>
+    /// One-shot deck modification when the player picks deck-modifying equipment.
+    /// Called from CampaignSystem.SelectEquipment after the equipment is added to inventory.
+    /// </summary>
+    public static GameState ApplyOnAcquisition(GameState state, Equipment equipment, Random rng)
+    {
+        return equipment.EffectType switch
+        {
+            EquipmentEffectType.Bleach => ApplyBleach(state),
+            EquipmentEffectType.Estrogen => ApplyEstrogen(state, rng),
+            EquipmentEffectType.Progesterone => ApplyProgesterone(state, rng),
+            EquipmentEffectType.CrystalBall => ApplyCrystalBall(state, rng),
+            EquipmentEffectType.Boots => ApplyBoots(state, rng),
+            _ => state
+        };
+    }
+
+    /// <summary>
+    /// Bleach: enhance every Spritz, Sweep, and Brush already in the persistent deck.
+    /// </summary>
+    private static GameState ApplyBleach(GameState state)
+    {
+        var deck = state.PersistentDeck.Select(c =>
+            IsBleachableEffect(c.EffectType) && !c.Enhanced
+                ? c with { Enhanced = true }
+                : c
+        ).ToList();
+        return state with { PersistentDeck = deck };
+    }
+
+    private static bool IsBleachableEffect(CardEffectType effect) =>
+        effect == CardEffectType.Spritz
+        || effect == CardEffectType.Sweep
+        || effect == CardEffectType.Brush;
+
+    /// <summary>
+    /// Estrogen: pick 3 random non-enhanced cards in the persistent deck and grant BonusSpoon.
+    /// Eligibility filter: cards that are not Enhanced (so this doesn't pile onto already-enhanced ones).
+    /// </summary>
+    private static GameState ApplyEstrogen(GameState state, Random rng)
+    {
+        return UpgradeRandomCards(state, c => !c.Enhanced, c => c with { BonusSpoon = true }, 3, rng);
+    }
+
+    /// <summary>
+    /// Progesterone: pick 3 random non-bonus-spoon cards in the persistent deck and grant Enhanced.
+    /// </summary>
+    private static GameState ApplyProgesterone(GameState state, Random rng)
+    {
+        return UpgradeRandomCards(state, c => !c.BonusSpoon, c => c with { Enhanced = true }, 3, rng);
+    }
+
+    private static GameState UpgradeRandomCards(GameState state, Func<Card, bool> eligible,
+        Func<Card, Card> upgrade, int count, Random rng)
+    {
+        var deck = state.PersistentDeck.ToList();
+        var indices = Enumerable.Range(0, deck.Count).Where(i => eligible(deck[i])).ToList();
+
+        // Shuffle eligible indices and take up to `count`
+        for (var i = indices.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (indices[i], indices[j]) = (indices[j], indices[i]);
+        }
+
+        foreach (var idx in indices.Take(count))
+        {
+            deck[idx] = upgrade(deck[idx]);
+        }
+
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Crystal Ball: add 3 doubly-upgraded (Enhanced + BonusSpoon) Tingle cards to the persistent deck.
+    /// </summary>
+    private static GameState ApplyCrystalBall(GameState state, Random rng)
+    {
+        var deck = state.PersistentDeck.ToList();
+        for (var i = 0; i < 3; i++)
+        {
+            var tingle = CardDefinitions.Tingle with
+            {
+                Id = $"crystalball_{Guid.NewGuid():N}",
+                Enhanced = true,
+                BonusSpoon = true
+            };
+            deck.Add(tingle);
+        }
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Boots: remove 1 random card from the persistent deck and add a doubly-upgraded
+    /// random card from the reward pool.
+    /// </summary>
+    private static GameState ApplyBoots(GameState state, Random rng)
+    {
+        var deck = state.PersistentDeck.ToList();
+        if (deck.Count == 0) return state;
+
+        var idx = rng.Next(deck.Count);
+        deck.RemoveAt(idx);
+
+        var pool = CardDefinitions.CreateRewardPool();
+        var template = pool[rng.Next(pool.Count)];
+        var newCard = template with
+        {
+            Id = $"boots_{Guid.NewGuid():N}",
+            Enhanced = true,
+            BonusSpoon = true
+        };
+        deck.Add(newCard);
+
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Bleach ongoing effect: when adding a Spritz/Sweep/Brush to the persistent deck,
+    /// auto-enhance it if Bleach is owned.
+    /// </summary>
+    public static Card ApplyBleachToNewCard(GameState state, Card card)
+    {
+        if (!HasEquipment(state, EquipmentEffectType.Bleach)) return card;
+        if (!IsBleachableEffect(card.EffectType)) return card;
+        if (card.Enhanced) return card;
+        return card with { Enhanced = true };
+    }
+
+    /// <summary>
+    /// Tiara: doubles copper rewards. Returns the multiplier (1 or 2) based on equipment.
+    /// </summary>
+    public static int CopperMultiplier(GameState state) =>
+        HasEquipment(state, EquipmentEffectType.Tiara) ? 2 : 1;
 }

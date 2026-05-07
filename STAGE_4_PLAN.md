@@ -234,7 +234,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Tiara: copper doubled from rival tiles at floor end
 - Tiara: copper doubled from 5th player reveal
 
-**Status**: Not Started
+**Status**: Complete (336 tests)
 
 ---
 

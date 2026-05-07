@@ -27,14 +27,14 @@ public static class CampaignSystem
     /// </summary>
     public static GameState CompleteFloor(GameState state, Random rng)
     {
-        // Award copper from unrevealed rival tiles (1 per tile)
+        // Award copper from unrevealed rival tiles (1 per tile, x2 with Tiara)
         var unrevealedRivals = state.Board.Tiles
             .Count(t => state.Board.IsUsablePosition(t.Position)
                         && !t.IsRevealed && !t.IsDestroyed
                         && t.Owner == TileOwner.Rival);
         if (unrevealedRivals > 0)
         {
-            state = state with { Copper = state.Copper + unrevealedRivals };
+            state = state with { Copper = state.Copper + unrevealedRivals * EquipmentSystem.CopperMultiplier(state) };
         }
 
         // Apply Complaints copper penalty: lose 2 copper per stack
@@ -117,8 +117,11 @@ public static class CampaignSystem
     /// </summary>
     public static GameState SelectCardReward(GameState state, Card selected, Random rng)
     {
+        // Bleach ongoing effect: future Spritz/Sweep/Brush added to deck are auto-enhanced
+        var cardToAdd = EquipmentSystem.ApplyBleachToNewCard(state, selected);
+
         var deck = state.PersistentDeck.ToList();
-        deck.Add(selected);
+        deck.Add(cardToAdd);
         state = state with
         {
             PersistentDeck = deck,
@@ -307,6 +310,7 @@ public static class CampaignSystem
 
     /// <summary>
     /// Player selects an equipment offering — adds it to their inventory.
+    /// Applies any one-shot deck-modifying effects from the new equipment.
     /// </summary>
     public static GameState SelectEquipment(GameState state, Equipment selected, Random rng)
     {
@@ -317,6 +321,9 @@ public static class CampaignSystem
             Equipment = equipment,
             EquipmentOptions = null
         };
+
+        // One-shot deck modifications from this equipment (Bleach, Estrogen, etc.)
+        state = EquipmentSystem.ApplyOnAcquisition(state, selected, rng);
 
         return AdvanceToNextFloor(state, rng);
     }

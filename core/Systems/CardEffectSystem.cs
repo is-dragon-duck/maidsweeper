@@ -413,7 +413,7 @@ public static class CardEffectSystem
     /// </summary>
     public static GameState ExecuteTwirl(GameState state, Card card)
     {
-        var copperGain = card.Enhanced ? 5 : 3;
+        var copperGain = (card.Enhanced ? 5 : 3) * EquipmentSystem.CopperMultiplier(state);
         return state with { Copper = state.Copper + copperGain };
     }
 
@@ -741,8 +741,8 @@ public static class CardEffectSystem
             board = BoardSystem.RevealTile(board, pos, PlayerType.Player);
             state = state with { Board = board };
 
-            // Gain 2 copper
-            state = state with { Copper = state.Copper + 2 };
+            // Gain 2 copper (x2 with Tiara)
+            state = state with { Copper = state.Copper + 2 * EquipmentSystem.CopperMultiplier(state) };
         }
 
         return state;
@@ -776,7 +776,7 @@ public static class CardEffectSystem
 
         if (card.Enhanced)
         {
-            state = state with { Copper = state.Copper + 2 };
+            state = state with { Copper = state.Copper + 2 * EquipmentSystem.CopperMultiplier(state) };
         }
 
         return state;

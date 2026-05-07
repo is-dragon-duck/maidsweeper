@@ -207,7 +207,7 @@ public static class GameRunner
     private static GameState TrackPlayerTileReveal(GameState state)
     {
         var newCount = state.PlayerTilesRevealedCount + 1;
-        var copperGain = newCount % 5 == 0 ? 1 : 0;
+        var copperGain = newCount % 5 == 0 ? 1 * EquipmentSystem.CopperMultiplier(state) : 0;
         var hydrateSpoon = copperGain > 0 && state.HydrateStacks > 0 ? 1 : 0;
         return state with
         {
