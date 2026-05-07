@@ -182,9 +182,12 @@ public class CampaignSystemTests
 
             if (state.GamePhase == GamePhase.CardReward)
                 state = CampaignSystem.SkipCardReward(state, new Random(seed++));
-
             if (state.GamePhase == GamePhase.UpgradeReward)
                 state = CampaignSystem.SkipUpgrade(state, new Random(seed++));
+            if (state.GamePhase == GamePhase.EquipmentReward)
+                state = CampaignSystem.SkipEquipment(state, new Random(seed++));
+            if (state.GamePhase == GamePhase.Shop)
+                state = CampaignSystem.LeaveShop(state, new Random(seed++));
 
             Assert.Equal(expectedLevels[i], state.CurrentLevelId);
             Assert.Equal(GamePhase.Playing, state.GamePhase);
@@ -217,13 +220,17 @@ public class CampaignSystemTests
         var rng = new Random(42);
         var state = CampaignSystem.StartCampaign(rng);
 
-        // Skip through to level 3
+        // Floor 1 → 2: Card only
         state = state with { GameStatus = GameStatus.Won };
         state = CampaignSystem.CompleteFloor(state, new Random(99));
         state = CampaignSystem.SkipCardReward(state, new Random(100));
+
+        // Floor 2 → 3: Card + Upgrade
         state = state with { GameStatus = GameStatus.Won };
         state = CampaignSystem.CompleteFloor(state, new Random(101));
         state = CampaignSystem.SkipCardReward(state, new Random(102));
+        if (state.GamePhase == GamePhase.UpgradeReward)
+            state = CampaignSystem.SkipUpgrade(state, new Random(103));
 
         Assert.Equal("level3", state.CurrentLevelId);
         Assert.Equal(4, state.Board.UnusedPositions.Count);
@@ -500,11 +507,19 @@ public class CampaignSystemTests
     }
 
     [Fact]
-    public void UpgradeReward_OfferedOnLevel5()
+    public void RewardFlow_Level2OffersCardAndUpgrade()
+    {
+        var config = LevelConfigs.Level2;
+        Assert.True(config.UponFinish!.CardReward);
+        Assert.True(config.UponFinish!.UpgradeReward);
+    }
+
+    [Fact]
+    public void RewardFlow_Level5OffersCardAndEquipment()
     {
         var config = LevelConfigs.Level5;
-        Assert.True(config.UponFinish!.UpgradeReward);
         Assert.True(config.UponFinish!.CardReward);
+        Assert.True(config.UponFinish!.EquipmentReward);
     }
 
     [Fact]
@@ -1154,5 +1169,183 @@ public class CampaignSystemTests
         var options = CampaignSystem.GenerateEquipmentOptions(allOwned, new Random(42));
 
         Assert.Empty(options);
+    }
+
+    // ========== Reward Flow (M33) Tests ==========
+
+    /// <summary>
+    /// Walks the campaign through every floor, skipping each phase, asserting
+    /// that the right phases appear (and only those) per the M33 design table.
+    /// </summary>
+    [Fact]
+    public void RewardFlow_FullCampaign_PhaseSequenceMatchesTable()
+    {
+        // Expected phase sequence per floor end → next floor:
+        // Floor 1 → 2:  Card
+        // Floor 2 → 3:  Card, Upgrade
+        // Floor 3 → 4:  Equipment
+        // Floor 4 → 5:  Shop
+        // Floor 5 → 6:  Card, Equipment
+        // Floor 6 → 7:  Card
+        // Floor 7 → 8:  Card, Upgrade
+        // Floor 8: no rewards (campaign ends)
+        var expectedPhases = new[]
+        {
+            new[] { GamePhase.CardReward },
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },
+            new[] { GamePhase.EquipmentReward },
+            new[] { GamePhase.Shop },
+            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },
+            new[] { GamePhase.CardReward },
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },
+        };
+
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        var seed = 99;
+
+        for (var floorIdx = 0; floorIdx < expectedPhases.Length; floorIdx++)
+        {
+            state = state with { GameStatus = GameStatus.Won };
+            state = CampaignSystem.CompleteFloor(state, new Random(seed++));
+
+            var observed = new List<GamePhase>();
+            while (state.GamePhase != GamePhase.Playing && state.GamePhase != GamePhase.CampaignVictory)
+            {
+                observed.Add(state.GamePhase);
+                state = state.GamePhase switch
+                {
+                    GamePhase.CardReward => CampaignSystem.SkipCardReward(state, new Random(seed++)),
+                    GamePhase.UpgradeReward => CampaignSystem.SkipUpgrade(state, new Random(seed++)),
+                    GamePhase.EquipmentReward => CampaignSystem.SkipEquipment(state, new Random(seed++)),
+                    GamePhase.Shop => CampaignSystem.LeaveShop(state, new Random(seed++)),
+                    _ => throw new InvalidOperationException($"Unexpected phase {state.GamePhase}")
+                };
+            }
+
+            Assert.Equal(expectedPhases[floorIdx], observed.ToArray());
+        }
+
+        // Floor 8 → campaign victory (no NextLevelId)
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, new Random(seed));
+        Assert.Equal(GamePhase.CampaignVictory, state.GamePhase);
+    }
+
+    [Fact]
+    public void RewardFlow_EquipmentPhaseOnlyOnConfiguredFloors()
+    {
+        // Only Level3 (Equipment-only) and Level5 (Card+Equipment) should expose Equipment phase
+        Assert.True(LevelConfigs.Level3.UponFinish!.EquipmentReward);
+        Assert.True(LevelConfigs.Level5.UponFinish!.EquipmentReward);
+
+        Assert.False(LevelConfigs.Level1.UponFinish!.EquipmentReward);
+        Assert.False(LevelConfigs.Level2.UponFinish!.EquipmentReward);
+        Assert.False(LevelConfigs.Level4.UponFinish!.EquipmentReward);
+        Assert.False(LevelConfigs.Level6.UponFinish!.EquipmentReward);
+        Assert.False(LevelConfigs.Level7.UponFinish!.EquipmentReward);
+    }
+
+    [Fact]
+    public void RewardFlow_ShopPhaseOnlyOnConfiguredFloors()
+    {
+        // Only Level4 should have Shop in the M33 table
+        Assert.True(LevelConfigs.Level4.UponFinish!.Shop);
+
+        Assert.False(LevelConfigs.Level1.UponFinish!.Shop);
+        Assert.False(LevelConfigs.Level2.UponFinish!.Shop);
+        Assert.False(LevelConfigs.Level3.UponFinish!.Shop);
+        Assert.False(LevelConfigs.Level5.UponFinish!.Shop);
+        Assert.False(LevelConfigs.Level6.UponFinish!.Shop);
+        Assert.False(LevelConfigs.Level7.UponFinish!.Shop);
+    }
+
+    [Fact]
+    public void RewardFlow_FinalFloorGoesDirectlyToVictory()
+    {
+        // Drive a state at level8 (final) with Won status; CompleteFloor → CampaignVictory
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        // Walk to level 8
+        var seed = 99;
+        for (var i = 0; i < 7; i++)
+        {
+            state = state with { GameStatus = GameStatus.Won };
+            state = CampaignSystem.CompleteFloor(state, new Random(seed++));
+            while (state.GamePhase != GamePhase.Playing && state.GamePhase != GamePhase.CampaignVictory)
+            {
+                state = state.GamePhase switch
+                {
+                    GamePhase.CardReward => CampaignSystem.SkipCardReward(state, new Random(seed++)),
+                    GamePhase.UpgradeReward => CampaignSystem.SkipUpgrade(state, new Random(seed++)),
+                    GamePhase.EquipmentReward => CampaignSystem.SkipEquipment(state, new Random(seed++)),
+                    GamePhase.Shop => CampaignSystem.LeaveShop(state, new Random(seed++)),
+                    _ => state
+                };
+            }
+        }
+        Assert.Equal("level8", state.CurrentLevelId);
+
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, new Random(seed));
+
+        Assert.Equal(GamePhase.CampaignVictory, state.GamePhase);
+    }
+
+    [Fact]
+    public void RewardFlow_SkippingCardOnLevel2_AdvancesToUpgradePhase()
+    {
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+
+        // Floor 1 → 2 (skip card reward)
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, new Random(99));
+        state = CampaignSystem.SkipCardReward(state, new Random(100));
+        Assert.Equal("level2", state.CurrentLevelId);
+
+        // Complete floor 2 → CardReward, skip → UpgradeReward (not Playing yet)
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, new Random(101));
+        Assert.Equal(GamePhase.CardReward, state.GamePhase);
+
+        state = CampaignSystem.SkipCardReward(state, new Random(102));
+        Assert.Equal(GamePhase.UpgradeReward, state.GamePhase);
+        Assert.Equal("level2", state.CurrentLevelId); // still on level 2 until all phases done
+    }
+
+    [Fact]
+    public void RewardFlow_SelectingCardOnLevel5_AdvancesToEquipmentPhase()
+    {
+        // Walk to level5 first
+        var rng = new Random(42);
+        var state = CampaignSystem.StartCampaign(rng);
+        var seed = 99;
+        for (var i = 0; i < 4; i++)
+        {
+            state = state with { GameStatus = GameStatus.Won };
+            state = CampaignSystem.CompleteFloor(state, new Random(seed++));
+            while (state.GamePhase != GamePhase.Playing)
+            {
+                state = state.GamePhase switch
+                {
+                    GamePhase.CardReward => CampaignSystem.SkipCardReward(state, new Random(seed++)),
+                    GamePhase.UpgradeReward => CampaignSystem.SkipUpgrade(state, new Random(seed++)),
+                    GamePhase.EquipmentReward => CampaignSystem.SkipEquipment(state, new Random(seed++)),
+                    GamePhase.Shop => CampaignSystem.LeaveShop(state, new Random(seed++)),
+                    _ => state
+                };
+            }
+        }
+        Assert.Equal("level5", state.CurrentLevelId);
+
+        state = state with { GameStatus = GameStatus.Won };
+        state = CampaignSystem.CompleteFloor(state, new Random(seed++));
+        Assert.Equal(GamePhase.CardReward, state.GamePhase);
+
+        // Selecting card advances to EquipmentReward (not Playing)
+        var card = state.CardRewardOptions![0];
+        state = CampaignSystem.SelectCardReward(state, card, new Random(seed++));
+        Assert.Equal(GamePhase.EquipmentReward, state.GamePhase);
     }
 }

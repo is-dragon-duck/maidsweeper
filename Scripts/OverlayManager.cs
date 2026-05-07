@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Maidsweeper.Core.Models;
+using Maidsweeper.Core.Systems;
 
 namespace Maidsweeper.Scripts;
 
@@ -23,6 +24,12 @@ public partial class OverlayManager : RefCounted
 
     [Signal]
     public delegate void NapCardSelectedEventHandler(string cardId);
+
+    [Signal]
+    public delegate void EquipmentSelectedEventHandler(string equipmentId);
+
+    [Signal]
+    public delegate void ShopSlotPurchasedEventHandler(int slotIndex);
 
     [Signal]
     public delegate void SkipPressedEventHandler();
@@ -168,12 +175,14 @@ public partial class OverlayManager : RefCounted
         ShowEndButtons("Play Again");
     }
 
-    public void ShowCardReward(GameState state)
+    #nullable enable
+    public void ShowCardReward(GameState state, string? floorSummary = null)
+    #nullable restore
     {
         CurrentMode = OverlayMode.CardReward;
         var floorNum = GetFloorNumber(state.CurrentLevelId);
         SetTitle($"Floor {floorNum} Cleared!", new Color(0.3f, 0.9f, 0.4f));
-        _details.Text = "Choose a card to add to your deck:";
+        _details.Text = ComposeDetails("Choose a card to add to your deck:", floorSummary);
 
         ClearCards();
         if (state.CardRewardOptions != null)
@@ -195,11 +204,13 @@ public partial class OverlayManager : RefCounted
         _dim.Visible = true;
     }
 
-    public void ShowUpgradeReward(GameState state)
+    #nullable enable
+    public void ShowUpgradeReward(GameState state, string? floorSummary = null)
+    #nullable restore
     {
         CurrentMode = OverlayMode.UpgradeReward;
         SetTitle("Upgrade Your Deck", new Color(0.85f, 0.7f, 0.15f));
-        _details.Text = "Choose an upgrade:";
+        _details.Text = ComposeDetails("Choose an upgrade:", floorSummary);
 
         _cardsScroll.Visible = false;
         ClearUpgradeButtons();
@@ -288,6 +299,95 @@ public partial class OverlayManager : RefCounted
         _dim.Visible = true;
     }
 
+    #nullable enable
+    public void ShowEquipmentReward(GameState state, string? floorSummary = null)
+    #nullable restore
+    {
+        CurrentMode = OverlayMode.EquipmentReward;
+        var floorNum = GetFloorNumber(state.CurrentLevelId);
+        SetTitle($"Floor {floorNum} Cleared!", new Color(0.4f, 0.7f, 0.95f));
+        _details.Text = ComposeDetails("Choose equipment for ongoing passive effects:", floorSummary);
+
+        ClearCards();
+        ClearUpgradeButtons();
+
+        if (state.EquipmentOptions != null)
+        {
+            foreach (var equipment in state.EquipmentOptions)
+            {
+                var btn = new Button
+                {
+                    Text = $"{equipment.Name}\n{equipment.Description}",
+                    CustomMinimumSize = new Vector2(360, 60),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart
+                };
+                var captured = equipment;
+                btn.Pressed += () => EmitSignal(SignalName.EquipmentSelected, captured.Id);
+                _upgradeButtons.AddChild(btn);
+            }
+        }
+
+        _cardsScroll.Visible = false;
+        _upgradeButtons.Visible = true;
+        _skipButton.Visible = true;
+        _skipButton.Text = "Skip";
+        _playAgainButton.Visible = false;
+        _dim.Visible = true;
+    }
+
+    #nullable enable
+    public void ShowShop(GameState state, string? floorSummary = null)
+    #nullable restore
+    {
+        CurrentMode = OverlayMode.Shop;
+        var floorNum = GetFloorNumber(state.CurrentLevelId);
+        SetTitle($"Floor {floorNum} — Shop", new Color(0.95f, 0.85f, 0.3f));
+        var baseDetails = $"Copper: {state.Copper}";
+        _details.Text = ComposeDetails(baseDetails, floorSummary);
+
+        ClearCards();
+        ClearUpgradeButtons();
+
+        if (state.ShopSlots != null)
+        {
+            foreach (var slot in state.ShopSlots)
+            {
+                var label = ShopSlotLabel(slot);
+                var btn = new Button
+                {
+                    Text = $"{label}  —  {slot.Price}c",
+                    CustomMinimumSize = new Vector2(360, 35),
+                    Disabled = !ShopSystem.CanPurchase(state, slot.Index) || slot.IsPurchased
+                };
+                if (slot.IsPurchased)
+                    btn.Text = $"{label}  —  Sold";
+
+                var capturedIdx = slot.Index;
+                btn.Pressed += () => EmitSignal(SignalName.ShopSlotPurchased, capturedIdx);
+                _upgradeButtons.AddChild(btn);
+            }
+        }
+
+        _cardsScroll.Visible = false;
+        _upgradeButtons.Visible = true;
+        _skipButton.Visible = true;
+        _skipButton.Text = "Done";
+        _playAgainButton.Visible = false;
+        _dim.Visible = true;
+    }
+
+    private static string ShopSlotLabel(ShopSlot slot) => slot.Kind switch
+    {
+        ShopSlotKind.RegularCard when slot.Card != null => $"{slot.Card.Name} ({slot.Card.Cost})",
+        ShopSlotKind.BonusSpoonCard when slot.Card != null => $"{slot.Card.Name} +Spoon ({slot.Card.Cost})",
+        ShopSlotKind.EnhancedCard when slot.Card != null => $"{slot.Card.Name} Enhanced ({slot.Card.Cost})",
+        ShopSlotKind.Equipment when slot.Equipment != null => $"{slot.Equipment.Name}",
+        ShopSlotKind.RemoveCard => "Remove a Card",
+        ShopSlotKind.VisitingBunny => "Visiting Bunny (reveal 1 next floor)",
+        ShopSlotKind.Enhance => "Enhance a random card",
+        _ => "(empty)"
+    };
+
     public void ShowPileView(string title, List<Card> cards)
     {
         CurrentMode = OverlayMode.PileView;
@@ -324,6 +424,15 @@ public partial class OverlayManager : RefCounted
         _title.AddThemeColorOverride("font_color", color);
     }
 
+    #nullable enable
+    private static string ComposeDetails(string baseLine, string? floorSummary)
+    {
+        return string.IsNullOrEmpty(floorSummary)
+            ? baseLine
+            : $"{floorSummary}\n{baseLine}";
+    }
+    #nullable restore
+
     private void ShowEndButtons(string buttonText)
     {
         _cardsScroll.Visible = false;
@@ -356,6 +465,8 @@ public enum OverlayMode
     Victory,
     CardReward,
     UpgradeReward,
+    EquipmentReward,
+    Shop,
     RemoveCard,
     NapSelection,
     PileView

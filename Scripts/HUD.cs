@@ -29,6 +29,7 @@ public partial class HUD : VBoxContainer
     private Label _floorLabel = null!;
     private Label _adjacencyLabel = null!;
     private Label _statusEffectsLabel = null!;
+    private Label _equipmentLabel = null!;
     private Button _endTurnButton = null!;
 
     // Annotation type selection buttons
@@ -105,6 +106,14 @@ public partial class HUD : VBoxContainer
         _statusEffectsLabel = new Label { Text = "" };
         _statusEffectsLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.3f));
         AddChild(_statusEffectsLabel);
+
+        _equipmentLabel = new Label { Text = "" };
+        _equipmentLabel.AddThemeFontSizeOverride("font_size", 12);
+        _equipmentLabel.AddThemeColorOverride("font_color", new Color(0.55f, 0.85f, 0.95f));
+        _equipmentLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _equipmentLabel.CustomMinimumSize = new Vector2(180, 0);
+        _equipmentLabel.Visible = false;
+        AddChild(_equipmentLabel);
 
         AddChild(new HSeparator());
 
@@ -232,8 +241,22 @@ public partial class HUD : VBoxContainer
             effects.Add($"Hydrate: {state.HydrateStacks}");
         if (state.AdoptStacks > 0)
             effects.Add($"Adopt: {state.AdoptStacks}");
+        if (state.VisitingBunnyPendingReveals > 0)
+            effects.Add($"Bunny: {state.VisitingBunnyPendingReveals}");
         _statusEffectsLabel.Text = effects.Count > 0 ? string.Join("\n", effects) : "";
         _statusEffectsLabel.Visible = effects.Count > 0;
+
+        // Equipment inventory
+        if (state.Equipment.Count > 0)
+        {
+            var names = state.Equipment.Select(e => e.Name).ToList();
+            _equipmentLabel.Text = "Equipment: " + string.Join(", ", names);
+            _equipmentLabel.Visible = true;
+        }
+        else
+        {
+            _equipmentLabel.Visible = false;
+        }
 
         // Game status
         _statusLabel.Text = state.GameStatus switch

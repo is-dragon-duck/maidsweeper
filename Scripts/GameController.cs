@@ -30,6 +30,17 @@ public partial class GameController : MarginContainer
     private ColorRect _debugOverlay = null!;
     private int _debugCardIdCounter;
 
+    // Shop sub-flow: when the player clicks the shop's RemoveCard slot, the
+    // RemoveCard overlay is shown with this slot index so the eventual selection
+    // can route back through ShopSystem.Purchase instead of CampaignSystem.SelectUpgrade.
+    private int? _pendingShopRemoveSlot;
+
+    // Floor-end summary (copper gained / paid). Shown on the first overlay after
+    // CompleteFloor and consumed when displayed.
+    #nullable enable
+    private string? _floorEndSummary;
+    #nullable restore
+
     public override void _Ready()
     {
         // Set a dark navy/charcoal background distinct from tile colors
@@ -68,6 +79,8 @@ public partial class GameController : MarginContainer
         _overlay.UpgradeSelected += OnUpgradeSelected;
         _overlay.RemoveCardSelected += OnRemoveCardSelected;
         _overlay.NapCardSelected += OnNapCardSelected;
+        _overlay.EquipmentSelected += OnEquipmentSelected;
+        _overlay.ShopSlotPurchased += OnShopSlotPurchased;
         _overlay.SkipPressed += OnSkipPressed;
         _overlay.PlayAgainPressed += OnPlayAgain;
 
@@ -248,20 +261,69 @@ public partial class GameController : MarginContainer
 
         if (_state.GameStatus == GameStatus.Won)
         {
-            _state = CampaignSystem.CompleteFloor(_state, _rng);
+            // Capture floor-end copper movement for display in the next overlay
+            var unrevealedRivals = _state.Board.Tiles.Count(t =>
+                _state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && !t.IsDestroyed
+                && t.Owner == TileOwner.Rival);
+            var rivalEarned = unrevealedRivals * EquipmentSystem.CopperMultiplier(_state);
+            var complaintsPenalty = _state.ComplaintsStacks * 2;
+            _floorEndSummary = BuildFloorEndSummary(rivalEarned, complaintsPenalty);
 
-            if (_state.GamePhase == GamePhase.CampaignVictory)
-                _overlay.ShowVictory(_state);
-            else if (_state.GamePhase == GamePhase.CardReward)
-                _overlay.ShowCardReward(_state);
-            else if (_state.GamePhase == GamePhase.UpgradeReward)
-                _overlay.ShowUpgradeReward(_state);
+            _state = CampaignSystem.CompleteFloor(_state, _rng);
+            RouteToCurrentPhase();
         }
         else
         {
             _overlay.ShowLoss(_state);
         }
     }
+
+    /// <summary>
+    /// Shows the appropriate overlay for the current GamePhase, or starts the
+    /// next floor if the campaign has already advanced to Playing.
+    /// </summary>
+    private void RouteToCurrentPhase()
+    {
+        // Consume the floor-end summary so it only appears on the first overlay
+        var summary = _floorEndSummary;
+        _floorEndSummary = null;
+
+        switch (_state.GamePhase)
+        {
+            case GamePhase.CardReward:
+                _overlay.ShowCardReward(_state, summary);
+                break;
+            case GamePhase.UpgradeReward:
+                _overlay.ShowUpgradeReward(_state, summary);
+                break;
+            case GamePhase.EquipmentReward:
+                _overlay.ShowEquipmentReward(_state, summary);
+                break;
+            case GamePhase.Shop:
+                _overlay.ShowShop(_state, summary);
+                break;
+            case GamePhase.CampaignVictory:
+                _overlay.ShowVictory(_state);
+                break;
+            case GamePhase.Playing:
+                StartNextFloor();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Builds a short copper-summary string ("+3 copper" / "−4 to Complaints" / both)
+    /// or returns null when there is no movement to report.
+    /// </summary>
+    #nullable enable
+    private static string? BuildFloorEndSummary(int rivalEarned, int complaintsPenalty)
+    {
+        if (rivalEarned == 0 && complaintsPenalty == 0) return null;
+        if (complaintsPenalty == 0) return $"+{rivalEarned} copper";
+        if (rivalEarned == 0) return $"−{complaintsPenalty} copper to Complaints";
+        return $"+{rivalEarned} copper (−{complaintsPenalty} to Complaints)";
+    }
+    #nullable restore
 
     // ───────────────────────────────────────────────
     // Overlay callbacks
@@ -275,11 +337,7 @@ public partial class GameController : MarginContainer
         if (selected == null) return;
 
         _state = CampaignSystem.SelectCardReward(_state, selected, _rng);
-
-        if (_state.GamePhase == GamePhase.UpgradeReward)
-            _overlay.ShowUpgradeReward(_state);
-        else
-            StartNextFloor();
+        RouteToCurrentPhase();
     }
 
     private void OnUpgradeSelected(int optionIndex)
@@ -294,7 +352,7 @@ public partial class GameController : MarginContainer
         }
 
         _state = CampaignSystem.SelectUpgrade(_state, option, _rng);
-        StartNextFloor();
+        RouteToCurrentPhase();
     }
 
     private void OnRemoveCardSelected(string cardId)
@@ -302,11 +360,64 @@ public partial class GameController : MarginContainer
         var cardToRemove = _state.PersistentDeck.FirstOrDefault(c => c.Id == cardId);
         if (cardToRemove == null) return;
 
+        // Shop's Remove-Card slot routes here too
+        if (_pendingShopRemoveSlot is { } slotIndex)
+        {
+            _pendingShopRemoveSlot = null;
+            try
+            {
+                _state = ShopSystem.Purchase(_state, slotIndex, _rng, cardToRemove);
+            }
+            catch (System.Exception e)
+            {
+                GD.Print($"Shop remove failed: {e.Message}");
+            }
+            _overlay.ShowShop(_state);
+            return;
+        }
+
         var removeOption = _state.UpgradeOptions?.FirstOrDefault(o => o.Type == UpgradeType.RemoveCard);
         if (removeOption == null) return;
 
         _state = CampaignSystem.SelectUpgrade(_state, removeOption, _rng, cardToRemove);
-        StartNextFloor();
+        RouteToCurrentPhase();
+    }
+
+    private void OnEquipmentSelected(string equipmentId)
+    {
+        if (_state.EquipmentOptions == null) return;
+
+        var selected = _state.EquipmentOptions.FirstOrDefault(e => e.Id == equipmentId);
+        if (selected == null) return;
+
+        _state = CampaignSystem.SelectEquipment(_state, selected, _rng);
+        RouteToCurrentPhase();
+    }
+
+    private void OnShopSlotPurchased(int slotIndex)
+    {
+        if (_state.ShopSlots == null) return;
+        var slot = _state.ShopSlots[slotIndex];
+
+        // Remove-Card slot needs the player to choose which card; sub-flow via RemoveCard overlay.
+        if (slot.Kind == ShopSlotKind.RemoveCard)
+        {
+            if (!ShopSystem.CanPurchase(_state, slotIndex)) return;
+            _pendingShopRemoveSlot = slotIndex;
+            _overlay.ShowRemoveCard(_state);
+            return;
+        }
+
+        try
+        {
+            _state = ShopSystem.Purchase(_state, slotIndex, _rng);
+        }
+        catch (System.Exception e)
+        {
+            GD.Print($"Shop purchase failed: {e.Message}");
+        }
+
+        _overlay.ShowShop(_state); // refresh slots/copper after purchase
     }
 
     private void OnNapCardSelected(string cardId)
@@ -335,13 +446,31 @@ public partial class GameController : MarginContainer
         switch (_overlay.CurrentMode)
         {
             case OverlayMode.RemoveCard:
-                // "Back" from remove card → return to upgrade options
-                _overlay.ShowUpgradeReward(_state);
+                // "Back" from remove card → return to whichever flow opened it
+                if (_pendingShopRemoveSlot != null)
+                {
+                    _pendingShopRemoveSlot = null;
+                    _overlay.ShowShop(_state);
+                }
+                else
+                {
+                    _overlay.ShowUpgradeReward(_state);
+                }
                 return;
 
             case OverlayMode.UpgradeReward:
                 _state = CampaignSystem.SkipUpgrade(_state, _rng);
-                StartNextFloor();
+                RouteToCurrentPhase();
+                return;
+
+            case OverlayMode.EquipmentReward:
+                _state = CampaignSystem.SkipEquipment(_state, _rng);
+                RouteToCurrentPhase();
+                return;
+
+            case OverlayMode.Shop:
+                _state = CampaignSystem.LeaveShop(_state, _rng);
+                RouteToCurrentPhase();
                 return;
 
             case OverlayMode.NapSelection:
@@ -350,10 +479,7 @@ public partial class GameController : MarginContainer
 
             case OverlayMode.CardReward:
                 _state = CampaignSystem.SkipCardReward(_state, _rng);
-                if (_state.GamePhase == GamePhase.UpgradeReward)
-                    _overlay.ShowUpgradeReward(_state);
-                else
-                    StartNextFloor();
+                RouteToCurrentPhase();
                 return;
 
             case OverlayMode.PileView:

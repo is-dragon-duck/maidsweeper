@@ -72,7 +72,12 @@ public static class LevelConfigs
                 EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
             }
         ],
-        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level3" }
+        UponFinish = new UponFinishConfig
+        {
+            CardReward = true,
+            UpgradeReward = true,
+            NextLevelId = "level3"
+        }
     };
 
     /// <summary>
@@ -101,7 +106,7 @@ public static class LevelConfigs
                 EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
             }
         ],
-        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level4" }
+        UponFinish = new UponFinishConfig { EquipmentReward = true, NextLevelId = "level4" }
     };
 
     /// <summary>
@@ -127,12 +132,12 @@ public static class LevelConfigs
                 EligibleOwners = [TileOwner.Player, TileOwner.Neutral]
             }
         ],
-        UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level5" }
+        UponFinish = new UponFinishConfig { Shop = true, NextLevelId = "level5" }
     };
 
     /// <summary>
     /// Level 5: 7x7 with complex holes, King adjacency. 4 nobles, 6 ExtraDirty.
-    /// Card + Upgrade reward.
+    /// Card + Equipment reward.
     /// </summary>
     public static readonly LevelConfig Level5 = new()
     {
@@ -168,7 +173,7 @@ public static class LevelConfigs
         UponFinish = new UponFinishConfig
         {
             CardReward = true,
-            UpgradeReward = true,
+            EquipmentReward = true,
             NextLevelId = "level6"
         }
     };

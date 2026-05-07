@@ -309,7 +309,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Equipment phase only appears on configured floors
 - Shop phase only appears on configured floors
 
-**Status**: Not Started
+**Status**: Complete (362 tests)
 
 ---
 
@@ -325,7 +325,7 @@ Align with alpha's Grace/Evidence penalty pattern, adapted to our naming:
 - Copper earned notification at floor end (brief display of gains/losses)
 - Visiting Bunny indicator (if purchased, show in status effects)
 
-**Status**: Not Started
+**Status**: Complete (manual playtest needed for visuals)
 
 ---
 
