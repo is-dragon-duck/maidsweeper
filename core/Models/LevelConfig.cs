@@ -30,6 +30,12 @@ public record LevelConfig
     public AdjacencyRule AdjacencyRule { get; init; } = AdjacencyRule.King;
     public AiType RivalAi { get; init; } = AiType.Random;
     public int InitialRivalReveal { get; init; }
+    /// <summary>
+    /// Maps to the alpha config's `rivalNeverMines`. When true, the rival's AI
+    /// must never reveal a noble (regular or lounging). Read by Conservative
+    /// and Reasoning AIs to filter their candidate pool.
+    /// </summary>
+    public bool RivalNeverNobles { get; init; }
     public UponFinishConfig? UponFinish { get; init; }
 }
 

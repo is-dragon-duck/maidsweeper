@@ -125,7 +125,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Falls back gracefully when nothing eligible
 - Does not skip lounging nobles when `rivalNeverMines = false` (they're part of the intent-driven selection)
 
-**Status**: Not Started
+**Status**: Complete (407 tests; lounging-noble filtering deferred to M40)
 
 ---
 

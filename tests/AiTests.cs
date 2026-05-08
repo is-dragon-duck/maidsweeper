@@ -247,4 +247,213 @@ public class AiTests
         var sumAfter = state.RivalIntentPoints.Values.Sum();
         Assert.True(sumAfter < sumBefore, $"intent sum should decrease after rival turn: before={sumBefore}, after={sumAfter}");
     }
+
+    // ---------- ConservativeAi (M37) ----------
+
+    /// <summary>
+    /// Builds a 3×2 controlled board where the rival-revealed (0,0) tile has
+    /// adjacencyCount=3 forcing (0,1), (1,0), (1,1) to be guaranteed rivals.
+    /// (0,2)=Neutral, (1,2)=Player. Total: 4 rivals (incl. revealed), 1 neutral, 1 player.
+    /// </summary>
+    private static GameState BuildConservativeTestBoard()
+    {
+        var tiles = new List<Tile>
+        {
+            // Row 0
+            new() { Position = new Position(0, 0), Owner = TileOwner.Rival,
+                IsRevealed = true, RevealedBy = PlayerType.Rival, AdjacencyCount = 3 },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Rival },
+            new() { Position = new Position(0, 2), Owner = TileOwner.Neutral },
+            // Row 1
+            new() { Position = new Position(1, 0), Owner = TileOwner.Rival },
+            new() { Position = new Position(1, 1), Owner = TileOwner.Rival },
+            new() { Position = new Position(1, 2), Owner = TileOwner.Player }
+        };
+        var board = new Board { Width = 3, Height = 2, Tiles = tiles };
+        return new GameState { Board = board, CurrentLevelId = "level1" };
+    }
+
+    [Fact]
+    public void ConservativeAi_IsRegisteredCorrectly()
+    {
+        Assert.IsType<ConservativeAi>(AiRegistry.Get(AiType.Conservative));
+    }
+
+    [Fact]
+    public void ConservativeAi_PrefersGuaranteedRivalsOverHigherIntentTiles()
+    {
+        var state = BuildConservativeTestBoard();
+        var intent = new Dictionary<Position, int>
+        {
+            // Guaranteed rivals get LOW intent
+            [new Position(0, 1)] = 1,
+            [new Position(1, 0)] = 1,
+            [new Position(1, 1)] = 1,
+            // Non-guaranteed tile gets HIGH intent
+            [new Position(0, 2)] = 99,
+            [new Position(1, 2)] = 99
+        };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 3, Height = 2, PlayerCount = 1, RivalCount = 4, NeutralCount = 1, NobleCount = 0
+        }};
+
+        var ai = new ConservativeAi();
+        var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(7));
+
+        // First pick must be a guaranteed rival, not the high-intent neutral/player.
+        var guaranteed = new HashSet<Position> { new(0, 1), new(1, 0), new(1, 1) };
+        Assert.Contains(picks[0], guaranteed);
+    }
+
+    [Fact]
+    public void ConservativeAi_SkipsNobles_WhenRivalNeverNoblesIsTrue()
+    {
+        // Manual board: 1 noble + 1 rival, no constraints possible (no revealed tiles).
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Noble },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Rival },
+            new() { Position = new Position(0, 2), Owner = TileOwner.Player }
+        };
+        var board = new Board { Width = 3, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 0)] = 99,  // noble — would dominate without filter
+            [new Position(0, 1)] = 1
+        };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 3, Height = 1, PlayerCount = 1, RivalCount = 1, NeutralCount = 0, NobleCount = 1,
+            RivalNeverNobles = true
+        }};
+
+        var ai = new ConservativeAi();
+        for (var seed = 0; seed < 20; seed++)
+        {
+            var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(seed));
+            Assert.DoesNotContain(new Position(0, 0), picks);
+        }
+    }
+
+    [Fact]
+    public void ConservativeAi_MayRevealNobles_WhenRivalNeverNoblesIsFalse()
+    {
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Noble },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Rival }
+        };
+        var board = new Board { Width = 2, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 0)] = 99,  // noble
+            [new Position(0, 1)] = 1
+        };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 2, Height = 1, PlayerCount = 0, RivalCount = 1, NeutralCount = 0, NobleCount = 1,
+            RivalNeverNobles = false
+        }};
+
+        var ai = new ConservativeAi();
+        var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(7));
+
+        // Noble has highest points and is not filtered → it gets picked first
+        Assert.Equal(new Position(0, 0), picks[0]);
+    }
+
+    [Fact]
+    public void ConservativeAi_FallsBackToMaxPoints_WhenNoGuaranteedRivals()
+    {
+        // Board with no revealed tiles → no constraints → no guaranteed rivals
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Rival },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Neutral }
+        };
+        var board = new Board { Width = 2, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 0)] = 1,
+            [new Position(0, 1)] = 9   // max-points
+        };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 2, Height = 1, PlayerCount = 0, RivalCount = 1, NeutralCount = 1, NobleCount = 0
+        }};
+
+        var ai = new ConservativeAi();
+        var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(7));
+
+        Assert.Equal(new Position(0, 1), picks[0]);
+    }
+
+    [Fact]
+    public void ConservativeAi_ReturnsEmpty_WhenOnlyNoblesAvailable_AndRivalNeverNobles()
+    {
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Noble }
+        };
+        var board = new Board { Width = 1, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int> { [new Position(0, 0)] = 50 };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 1, Height = 1, PlayerCount = 0, RivalCount = 0, NeutralCount = 0, NobleCount = 1,
+            RivalNeverNobles = true
+        }};
+
+        var ai = new ConservativeAi();
+        var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(7));
+
+        Assert.Empty(picks);
+    }
+
+    [Fact]
+    public void ConservativeAi_PrefersNonRuledOutTilesInFallback()
+    {
+        // Setup: a revealed player tile with adjacencyCount=0 rules out player from
+        // its unrevealed neighbors. Conservative should prefer a non-ruled-out tile
+        // even if a ruled-out one has slightly higher intent — but only if the
+        // non-ruled-out one is also reasonably high.
+        // 1×3: (0,0)=Player revealed adj=0, (0,1)=Rival, (0,2)=Rival
+        // (0,1) has been ruled out as Player (still possible: rival/neutral/noble);
+        // its rival flag is unchanged → ruledOutRivals does NOT include it.
+        // To exercise the ruled-out-rival branch we need a constraint that rules out rival.
+        // (0,0)=Rival revealed adj=0 → none of its neighbors are rival → (0,1) ruled out as rival.
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Rival,
+                IsRevealed = true, RevealedBy = PlayerType.Rival, AdjacencyCount = 0 },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Neutral }, // ruled-out-rival neighbor
+            new() { Position = new Position(0, 2), Owner = TileOwner.Rival }    // not ruled out (not adjacent)
+        };
+        var board = new Board { Width = 3, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 1)] = 5,  // ruled out as rival
+            [new Position(0, 2)] = 4   // not ruled out
+        };
+        var ctx = new AiContext { LevelConfig = new LevelConfig
+        {
+            Width = 3, Height = 1, PlayerCount = 0, RivalCount = 2, NeutralCount = 1, NobleCount = 0
+        }};
+
+        var ai = new ConservativeAi();
+        var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(7));
+
+        // Should prefer (0,2) — not ruled out as rival — even though (0,1) has higher intent
+        Assert.Equal(new Position(0, 2), picks[0]);
+    }
 }
