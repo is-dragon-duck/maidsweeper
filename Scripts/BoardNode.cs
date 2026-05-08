@@ -85,7 +85,9 @@ public partial class BoardNode : Node2D
         }
     }
 
-    public void UpdateBoard(Board board, List<string> globalClueOrder, TileOwner? viewingPerspective = null)
+    #nullable enable
+    public void UpdateBoard(Board board, List<string> globalClueOrder, TileOwner? viewingPerspective = null, IReadOnlyDictionary<Position, int>? intentPoints = null)
+    #nullable restore
     {
         if (_tileNodes == null) return;
 
@@ -96,7 +98,8 @@ public partial class BoardNode : Node2D
                 var pos = new Position(row, col);
                 var tile = board.GetTile(pos);
                 var saturated = tile.IsRevealed && BoardSystem.IsSaturated(board, pos);
-                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated);
+                var intent = intentPoints != null && intentPoints.TryGetValue(pos, out var pts) ? pts : 0;
+                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated, intent);
             }
         }
     }

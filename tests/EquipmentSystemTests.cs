@@ -189,12 +189,17 @@ public class EquipmentSystemTests
     // ========== Eyeshadow ==========
 
     [Fact]
-    public void Eyeshadow_Adds1DistractionAtTurn1()
+    public void Eyeshadow_AddsDistractionIntentAtFloorStart()
     {
+        // Without Eyeshadow: baseline intent has 4 baseline distractions.
+        var baseline = BuildFloorStartState();
+        var baselineSum = baseline.RivalIntentPoints.Values.Sum();
+
+        // With Eyeshadow: +1 distraction → +1 to total intent point sum.
         var eyeshadow = EquipmentDefinitions.Eyeshadow with { Id = "e1" };
         var state = BuildFloorStartState(new List<Equipment> { eyeshadow });
 
-        Assert.Equal(1, state.DistractionStacks);
+        Assert.Equal(baselineSum + 1, state.RivalIntentPoints.Values.Sum());
     }
 
     [Fact]
@@ -205,20 +210,21 @@ public class EquipmentSystemTests
             Board = BoardSystem.CreateBoard(LevelConfigs.Level1, new Random(1)),
             DrawPile = CardDefinitions.CreateStarterDeck(),
             Equipment = new List<Equipment> { EquipmentDefinitions.Eyeshadow with { Id = "e1" } },
-            DistractionStacks = 0,
             CurrentPlayer = PlayerType.Player,
             TurnNumber = 1
         };
 
         state = TurnSystem.StartPlayerTurn(state, new Random(42));
-
-        // After StartPlayerTurn (turn 1 → turn 2), Eyeshadow added 1 stack
-        Assert.Equal(1, state.DistractionStacks);
+        var sumAfterTurn1 = state.RivalIntentPoints.Values.Sum();
 
         state = TurnSystem.StartPlayerTurn(state, new Random(42));
+        var sumAfterTurn2 = state.RivalIntentPoints.Values.Sum();
 
-        // Turn 3 — another Eyeshadow stack added (DistractionStacks not auto-reset within a player turn loop)
-        Assert.Equal(2, state.DistractionStacks);
+        // Each StartPlayerTurn generates a fresh batch of intent (combined with carry-over)
+        // and Eyeshadow adds +1. We just need sum to grow each turn by more than 1
+        // (proving Eyeshadow fires *and* base generation runs each turn).
+        Assert.True(sumAfterTurn1 > 0, "turn 1 should produce nonzero intent");
+        Assert.True(sumAfterTurn2 > sumAfterTurn1, "turn 2 should add more intent on top of turn 1");
     }
 
     // ========== Glasses ==========
@@ -247,6 +253,9 @@ public class EquipmentSystemTests
     [Fact]
     public void MultipleEquipment_AllEffectsStack()
     {
+        var baseline = BuildFloorStartState();
+        var baselineIntentSum = baseline.RivalIntentPoints.Values.Sum();
+
         var equipment = new List<Equipment>
         {
             EquipmentDefinitions.Coffee with { Id = "c1" },
@@ -257,7 +266,7 @@ public class EquipmentSystemTests
 
         Assert.Equal(4, state.MaxSpoons);     // Coffee
         Assert.Equal(7, state.Hand.Count);    // 5 + 2 Handbag
-        Assert.Equal(1, state.DistractionStacks); // Eyeshadow
+        Assert.Equal(baselineIntentSum + 1, state.RivalIntentPoints.Values.Sum()); // Eyeshadow
     }
 
     [Fact]

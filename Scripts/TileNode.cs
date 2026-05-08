@@ -81,11 +81,11 @@ public partial class TileNode : Control
         _view.SetUnused(unused);
     }
 
-    public void UpdateFromTile(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false)
+    public void UpdateFromTile(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false, int intentPoints = 0)
     {
         _isRevealed = tile.IsRevealed;
         _isDestroyed = tile.IsDestroyed;
-        _view.UpdateVisual(tile, globalClueOrder, viewingPerspective, saturated);
+        _view.UpdateVisual(tile, globalClueOrder, viewingPerspective, saturated, intentPoints);
     }
 
     public void SetTargetValid(bool valid)

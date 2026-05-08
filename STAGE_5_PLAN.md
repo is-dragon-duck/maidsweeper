@@ -80,7 +80,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Empty board (no unrevealed): generates empty map
 - Distraction targets only nonzero-point tiles
 
-**Status**: Not Started
+**Status**: Complete (390 tests)
 
 ---
 

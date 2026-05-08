@@ -200,7 +200,7 @@ public partial class GameController : MarginContainer
         }
 
         TileOwner? perspective = _hud.SelectedAnnotationType;
-        _boardNode.UpdateBoard(_state.Board, _globalClueOrder, perspective);
+        _boardNode.UpdateBoard(_state.Board, _globalClueOrder, perspective, _state.RivalIntentPoints);
         _handDisplay.UpdateHand(_state);
         _hud.UpdateFromState(_state);
         UpdateTargetingUI();

@@ -57,7 +57,7 @@ public static class CardEffectSystem
                 CardEffectType.Brat => ExecuteBrat(state, targets, card),
                 CardEffectType.Mollify => ExecuteMollify(state),
                 CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
-                CardEffectType.Ramble => ExecuteRamble(state, card),
+                CardEffectType.Ramble => ExecuteRamble(state, card, rng),
                 CardEffectType.Read => ExecuteRead(state, card),
                 CardEffectType.Hydrate => ExecuteHydrate(state, card),
                 CardEffectType.Adopt => ExecuteAdopt(state, card),
@@ -225,7 +225,7 @@ public static class CardEffectSystem
             CardEffectType.Brat => ExecuteBrat(state, targets, card),
             CardEffectType.Mollify => ExecuteMollify(state),
             CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
-            CardEffectType.Ramble => ExecuteRamble(state, card),
+            CardEffectType.Ramble => ExecuteRamble(state, card, rng),
             CardEffectType.Read => ExecuteRead(state, card),
             CardEffectType.Hydrate => ExecuteHydrate(state, card),
             CardEffectType.Adopt => ExecuteAdopt(state, card),
@@ -880,10 +880,16 @@ public static class CardEffectSystem
     /// Ramble: Add Distraction stacks to the rival.
     /// Base: 2 stacks. Enhanced: 4 stacks.
     /// </summary>
-    public static GameState ExecuteRamble(GameState state, Card card)
+    public static GameState ExecuteRamble(GameState state, Card card, Random rng)
     {
-        var stacks = card.Enhanced ? 4 : 2;
-        return state with { DistractionStacks = state.DistractionStacks + stacks };
+        var distractions = card.Enhanced ? 4 : 2;
+        var points = new Dictionary<Position, int>(state.RivalIntentPoints);
+        var excluded = IntentSystem.GetExcludedPositions(state.Board);
+        for (var i = 0; i < distractions; i++)
+        {
+            IntentSystem.AddDistractionPoint(points, excluded, rng);
+        }
+        return state with { RivalIntentPoints = points };
     }
 
     /// <summary>

@@ -13,13 +13,17 @@ public static class CampaignSystem
         var config = LevelConfigs.Level1;
 
         var state = CreateFloorState(config, starterDeck, rng);
-        return state with
+        state = state with
         {
             PersistentDeck = starterDeck,
             CurrentLevelId = config.LevelId,
             GamePhase = GamePhase.Playing,
             ExcusesStacks = 1
         };
+
+        // Initial rival intent points for turn 1 (Level 1 has no equipment yet)
+        var initialIntent = IntentSystem.GenerateTurnIntent(state, rng);
+        return state with { RivalIntentPoints = initialIntent };
     }
 
     /// <summary>
@@ -425,11 +429,18 @@ public static class CampaignSystem
             AdoptStacks = state.AdoptStacks,
             // Persist shop state
             ShopVisitCount = state.ShopVisitCount,
-            VisitingBunnyPendingReveals = state.VisitingBunnyPendingReveals
+            VisitingBunnyPendingReveals = state.VisitingBunnyPendingReveals,
+            // Reset per-floor intent points
+            RivalIntentPoints = new Dictionary<Position, int>()
         };
 
         // Equipment floor-start hooks (Coffee, Handbag, Dust Bunny)
         floorState = EquipmentSystem.ApplyOnFloorStart(floorState, rng);
+
+        // Generate initial intent before turn-start hooks so Eyeshadow can add a distraction.
+        var initialIntent = IntentSystem.GenerateTurnIntent(floorState, rng);
+        floorState = floorState with { RivalIntentPoints = initialIntent };
+
         // Equipment turn-start hooks for turn 1 (Eyeshadow, Glasses)
         floorState = EquipmentSystem.ApplyOnTurnStart(floorState, rng);
 

@@ -1675,37 +1675,61 @@ public class CardEffectTests
     // ========== Ramble Tests ==========
 
     [Fact]
-    public void Ramble_Adds2DistractionStacks()
+    public void Ramble_Adds2DistractionIntentPoints()
     {
-        var state = CreateTestGame();
+        // Seed intent points so AddDistractionPoint has nonzero candidates to pick from.
+        var state = CreateTestGame() with
+        {
+            RivalIntentPoints = new Dictionary<Position, int>
+            {
+                [new Position(0, 0)] = 5,
+                [new Position(1, 1)] = 3
+            }
+        };
+        var sumBefore = state.RivalIntentPoints.Values.Sum();
         var card = CardDefinitions.Ramble with { Id = "r1" };
 
-        var newState = CardEffectSystem.ExecuteRamble(state, card);
+        var newState = CardEffectSystem.ExecuteRamble(state, card, new Random(7));
 
-        Assert.Equal(2, newState.DistractionStacks);
+        Assert.Equal(sumBefore + 2, newState.RivalIntentPoints.Values.Sum());
     }
 
     [Fact]
-    public void Ramble_Enhanced_Adds4Stacks()
+    public void Ramble_Enhanced_Adds4DistractionIntentPoints()
     {
-        var state = CreateTestGame();
+        var state = CreateTestGame() with
+        {
+            RivalIntentPoints = new Dictionary<Position, int>
+            {
+                [new Position(0, 0)] = 5
+            }
+        };
+        var sumBefore = state.RivalIntentPoints.Values.Sum();
         var card = CardDefinitions.Ramble with { Id = "r1", Enhanced = true };
 
-        var newState = CardEffectSystem.ExecuteRamble(state, card);
+        var newState = CardEffectSystem.ExecuteRamble(state, card, new Random(7));
 
-        Assert.Equal(4, newState.DistractionStacks);
+        Assert.Equal(sumBefore + 4, newState.RivalIntentPoints.Values.Sum());
     }
 
     [Fact]
-    public void Ramble_StacksAccumulate()
+    public void Ramble_DistractionsAccumulate()
     {
-        var state = CreateTestGame();
+        var state = CreateTestGame() with
+        {
+            RivalIntentPoints = new Dictionary<Position, int>
+            {
+                [new Position(0, 0)] = 5,
+                [new Position(2, 2)] = 1
+            }
+        };
+        var sumBefore = state.RivalIntentPoints.Values.Sum();
         var card = CardDefinitions.Ramble with { Id = "r1" };
 
-        state = CardEffectSystem.ExecuteRamble(state, card);
-        state = CardEffectSystem.ExecuteRamble(state, card);
+        state = CardEffectSystem.ExecuteRamble(state, card, new Random(7));
+        state = CardEffectSystem.ExecuteRamble(state, card, new Random(8));
 
-        Assert.Equal(4, state.DistractionStacks);
+        Assert.Equal(sumBefore + 4, state.RivalIntentPoints.Values.Sum());
     }
 
     // ========== Glaze Tests ==========

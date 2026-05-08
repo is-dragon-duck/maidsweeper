@@ -58,7 +58,9 @@ public static class EquipmentSystem
     {
         if (HasEquipment(state, EquipmentEffectType.Eyeshadow))
         {
-            state = state with { DistractionStacks = state.DistractionStacks + 1 };
+            var points = new Dictionary<Position, int>(state.RivalIntentPoints);
+            IntentSystem.AddDistractionPoint(points, IntentSystem.GetExcludedPositions(state.Board), rng);
+            state = state with { RivalIntentPoints = points };
         }
 
         if (HasEquipment(state, EquipmentEffectType.Glasses))

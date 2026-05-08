@@ -53,6 +53,9 @@ public partial class TileView : Control
     // Annotation marker colors
     private static readonly Color ExcludedMarkColor = new(0.9f, 0.3f, 0.3f);    // red crossout
 
+    // Rival intent point marks (bottom-center): tiny blue X per point, large X per 5 points
+    private static readonly Color IntentMarkColor = new(0.45f, 0.7f, 1.0f);
+
     private bool _isRevealed;
     private TileOwner _owner;
     private int _adjacencyCount;
@@ -72,6 +75,9 @@ public partial class TileView : Control
     private int? _previousAdjacencyCount;
     private PlayerType? _previousRevealedBy;
     private bool _isSaturated;
+
+    // Rival intent points on this tile (0 = none drawn)
+    private int _intentPoints;
 
     // ───────────────────────────────────────────────
     // Shape drawing primitives
@@ -260,7 +266,35 @@ public partial class TileView : Control
             {
                 DrawDirtyIndicator();
             }
+            DrawIntentMarks();
         }
+    }
+
+    /// <summary>
+    /// Bottom-center: a single intent-strength marker.
+    /// 0–2 points: nothing. 3–5 points: small blue X. 6+ points: large blue X.
+    /// </summary>
+    private void DrawIntentMarks()
+    {
+        if (_intentPoints < 3) return;
+
+        var isLarge = _intentPoints >= 6;
+        var halfSize = isLarge ? 4f : 2.5f;
+        var lineWidth = isLarge ? 1.5f : 1.0f;
+        var center = new Vector2(Size.X / 2f, Size.Y - 8f);
+        DrawXMark(center, halfSize, lineWidth);
+    }
+
+    private void DrawXMark(Vector2 center, float halfSize, float lineWidth)
+    {
+        DrawLine(
+            new Vector2(center.X - halfSize, center.Y - halfSize),
+            new Vector2(center.X + halfSize, center.Y + halfSize),
+            IntentMarkColor, lineWidth);
+        DrawLine(
+            new Vector2(center.X - halfSize, center.Y + halfSize),
+            new Vector2(center.X + halfSize, center.Y - halfSize),
+            IntentMarkColor, lineWidth);
     }
 
     // ───────────────────────────────────────────────
@@ -571,7 +605,7 @@ public partial class TileView : Control
     // State updates
     // ───────────────────────────────────────────────
 
-    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false)
+    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false, int intentPoints = 0)
     {
         // Track Brat un-reveal: if tile was revealed and is now unrevealed, preserve adjacency
         if (_isRevealed && !tile.IsRevealed)
@@ -595,6 +629,7 @@ public partial class TileView : Control
         _isSaturated = saturated;
         _globalClueOrder = globalClueOrder;
         _viewingPerspective = viewingPerspective;
+        _intentPoints = intentPoints;
         QueueRedraw();
     }
 

@@ -29,6 +29,10 @@ public record GameState
     // Recall tracking (per-floor)
     public bool RecallPlayedThisFloor { get; init; }
 
+    // Rival intent points (per-floor): per-tile weights driving rival reveals
+    public IReadOnlyDictionary<Position, int> RivalIntentPoints { get; init; } =
+        new Dictionary<Position, int>();
+
     // Equipment tracking (per-floor)
     public int Turn1NeutralReveals { get; init; }
 

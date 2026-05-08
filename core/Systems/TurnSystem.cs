@@ -20,6 +20,11 @@ public static class TurnSystem
             TurnNumber = state.TurnNumber + 1
         };
 
+        // Generate this turn's intent points and combine with carry-over.
+        var newIntent = IntentSystem.GenerateTurnIntent(state, rng);
+        var combined = IntentSystem.Combine(state.RivalIntentPoints, newIntent);
+        state = state with { RivalIntentPoints = combined };
+
         return EquipmentSystem.ApplyOnTurnStart(state, rng);
     }
 
@@ -32,25 +37,53 @@ public static class TurnSystem
     }
 
     /// <summary>
-    /// Executes the rival's turn: reveals 1 random unrevealed rival tile.
-    /// Then transitions back to player.
+    /// Executes the rival's turn: reveals 1 tile chosen by intent-weighted preference,
+    /// then decays intent points. Falls back to a random rival tile if intent points
+    /// are empty (e.g., on InitialRivalReveal before the first player turn).
     /// </summary>
     public static GameState ExecuteRivalTurn(GameState state, Random rng)
     {
-        // Reset Distraction stacks at start of rival turn (consumed by AI)
+        // Reset Distraction stacks at start of rival turn (legacy, kept until full migration)
         state = state with { DistractionStacks = 0 };
 
-        var rivalTiles = state.Board.Tiles
-            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && !t.IsDestroyed && t.Owner == TileOwner.Rival)
-            .ToList();
+        Position? target = null;
 
-        if (rivalTiles.Count > 0)
+        if (state.RivalIntentPoints.Count > 0)
         {
-            var target = rivalTiles[rng.Next(rivalTiles.Count)];
+            // Restrict to currently-revealable tiles (skip already-revealed/destroyed/etc.)
+            var eligible = state.RivalIntentPoints
+                .Where(kv => state.Board.IsUsablePosition(kv.Key)
+                             && !state.Board.GetTile(kv.Key).IsRevealed
+                             && !state.Board.GetTile(kv.Key).IsDestroyed)
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            target = IntentSystem.PickHighestPoints(eligible, rng);
+        }
+
+        if (target == null)
+        {
+            // Fallback: random rival tile (used at floor start before any player turn)
+            var rivalTiles = state.Board.Tiles
+                .Where(t => state.Board.IsUsablePosition(t.Position)
+                            && !t.IsRevealed && !t.IsDestroyed
+                            && t.Owner == TileOwner.Rival)
+                .ToList();
+            if (rivalTiles.Count > 0)
+            {
+                target = rivalTiles[rng.Next(rivalTiles.Count)].Position;
+            }
+        }
+
+        if (target.HasValue)
+        {
             state = state with
             {
-                Board = BoardSystem.RevealTile(state.Board, target.Position, PlayerType.Rival)
+                Board = BoardSystem.RevealTile(state.Board, target.Value, PlayerType.Rival)
             };
+
+            // Decay intent points after the reveal
+            var decayed = IntentSystem.DecayIntent(state, new[] { target.Value });
+            state = state with { RivalIntentPoints = decayed };
         }
 
         return state;
