@@ -50,13 +50,8 @@ public partial class HUD : VBoxContainer
 
     public override void _Ready()
     {
-        // Build UI programmatically
-        var titleLabel = new Label { Text = "Maidsweeper" };
-        titleLabel.AddThemeFontSizeOverride("font_size", 20);
-        AddChild(titleLabel);
-
-        AddChild(new HSeparator());
-
+        // Build UI programmatically.
+        // (Game name is in the OS window title — no in-HUD title needed.)
         _turnLabel = new Label { Text = "Your Turn" };
         _turnLabel.AddThemeFontSizeOverride("font_size", 16);
         AddChild(_turnLabel);
@@ -105,14 +100,19 @@ public partial class HUD : VBoxContainer
 
         _statusEffectsLabel = new Label { Text = "" };
         _statusEffectsLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.3f));
+        // Reserve room for ~4 status effects so adding/removing one doesn't reflow.
+        // (Worst case is ~8 lines but that's rare; long lists wrap rather than push.)
+        _statusEffectsLabel.CustomMinimumSize = new Vector2(180, 80);
+        _statusEffectsLabel.VerticalAlignment = VerticalAlignment.Top;
+        _statusEffectsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         AddChild(_statusEffectsLabel);
 
         _equipmentLabel = new Label { Text = "" };
         _equipmentLabel.AddThemeFontSizeOverride("font_size", 12);
         _equipmentLabel.AddThemeColorOverride("font_color", new Color(0.55f, 0.85f, 0.95f));
         _equipmentLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _equipmentLabel.CustomMinimumSize = new Vector2(180, 0);
-        _equipmentLabel.Visible = false;
+        // ~2 lines of wrapped equipment names.
+        _equipmentLabel.CustomMinimumSize = new Vector2(180, 36);
         AddChild(_equipmentLabel);
 
         AddChild(new HSeparator());
@@ -243,20 +243,13 @@ public partial class HUD : VBoxContainer
             effects.Add($"Adopt: {state.AdoptStacks}");
         if (state.VisitingBunnyPendingReveals > 0)
             effects.Add($"Bunny: {state.VisitingBunnyPendingReveals}");
+        // Keep the label always laid out; empty text just shows blank space (reserved by CustomMinimumSize).
         _statusEffectsLabel.Text = effects.Count > 0 ? string.Join("\n", effects) : "";
-        _statusEffectsLabel.Visible = effects.Count > 0;
 
-        // Equipment inventory
-        if (state.Equipment.Count > 0)
-        {
-            var names = state.Equipment.Select(e => e.Name).ToList();
-            _equipmentLabel.Text = "Equipment: " + string.Join(", ", names);
-            _equipmentLabel.Visible = true;
-        }
-        else
-        {
-            _equipmentLabel.Visible = false;
-        }
+        // Equipment inventory — also always laid out
+        _equipmentLabel.Text = state.Equipment.Count > 0
+            ? "Equipment: " + string.Join(", ", state.Equipment.Select(e => e.Name))
+            : "";
 
         // Game status
         _statusLabel.Text = state.GameStatus switch

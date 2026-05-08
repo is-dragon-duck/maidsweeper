@@ -212,7 +212,11 @@ public partial class GameController : MarginContainer
 
     private void UpdateTargetingUI()
     {
-        _targetingBanner.Visible = _targeting.IsTargeting && _targeting.Mode == TargetingMode.TileTarget;
+        // Banner stays in the layout always; fade in/out so other UI doesn't shift.
+        var bannerActive = _targeting.IsTargeting
+            && (_targeting.Mode == TargetingMode.TileTarget || _targeting.Mode == TargetingMode.HandCardTarget);
+        _targetingBanner.Modulate = new Color(1, 1, 1, bannerActive ? 1 : 0);
+        _cancelButton.Disabled = !bannerActive;
 
         if (_targeting.IsTargeting && _targeting.Mode == TargetingMode.TileTarget)
         {
@@ -232,13 +236,13 @@ public partial class GameController : MarginContainer
         }
         else if (_targeting.IsTargeting && _targeting.Mode == TargetingMode.HandCardTarget)
         {
-            _targetingBanner.Visible = true;
             _targetingLabel.Text = $"{_targeting.TargetCard!.Name}: {_targeting.TargetingMessage}";
             _handDisplay.SetSelectedCard(_targeting.TargetCard!.Id);
             _boardNode.ClearTargetingHighlights();
         }
         else
         {
+            _targetingLabel.Text = "";
             _handDisplay.ClearSelection();
             _boardNode.ClearTargetingHighlights();
         }

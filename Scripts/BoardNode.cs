@@ -23,8 +23,8 @@ public partial class BoardNode : Node2D
     [Signal]
     public delegate void TileUnhoveredEventHandler(int row, int col);
 
-    private const int TileSize = 64;
-    private const int TileGap = 4;
+    private const int TileSize = BoardLayout.TileSize;
+    private const int TileGap = BoardLayout.TileGap;
 
     private readonly PackedScene _tileScene = GD.Load<PackedScene>("res://Scenes/Tile.tscn");
     #nullable enable

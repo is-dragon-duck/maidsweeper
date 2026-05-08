@@ -33,12 +33,18 @@ script = ExtResource("1")
 
 [node name="Layout" type="VBoxContainer" parent="." unique_id=574973757]
 layout_mode = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 1
+grow_vertical = 1
 
 [node name="TopArea" type="HBoxContainer" parent="Layout" unique_id=800380394]
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="BoardMargin" type="MarginContainer" parent="Layout/TopArea" unique_id=1615879546]
+custom_minimum_size = Vector2(580, 512)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 20
@@ -55,7 +61,8 @@ theme_override_constants/separation = 8
 script = ExtResource("3")
 
 [node name="TargetingBanner" type="PanelContainer" parent="Layout" unique_id=1122470178]
-visible = false
+custom_minimum_size = Vector2(0, 36)
+modulate = Color(1, 1, 1, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("targeting_bg")
 
