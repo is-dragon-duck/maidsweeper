@@ -97,7 +97,10 @@ public partial class BoardNode : Node2D
             {
                 var pos = new Position(row, col);
                 var tile = board.GetTile(pos);
-                var saturated = tile.IsRevealed && BoardSystem.IsSaturated(board, pos);
+                // Saturation check mark is for the player's own info — only show on player-revealed tiles.
+                var saturated = tile.IsRevealed
+                    && tile.RevealedBy == PlayerType.Player
+                    && BoardSystem.IsSaturated(board, pos);
                 var intent = intentPoints != null && intentPoints.TryGetValue(pos, out var pts) ? pts : 0;
                 _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated, intent);
             }

@@ -99,6 +99,14 @@ public enum AdjacencyRule
     Manhattan2  // All positions within Manhattan distance ≤ 2 (up to 12 neighbors)
 }
 
+public enum AiType
+{
+    Random,       // Weighted-random by intent points (no filtering)
+    NoGuess,      // Max-points selection, filtered to exclude nobles (omniscient noble-avoidance)
+    Conservative, // M37: weighted preference + noble avoidance
+    Reasoning     // M42: Monte Carlo + hill climbing
+}
+
 public enum EquipmentEffectType
 {
     // --- Stage 4 Set 1 (simple passives, M30) ---

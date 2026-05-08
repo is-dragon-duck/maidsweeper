@@ -105,7 +105,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - AI selection: `LevelConfig.RivalAi` routes to the right type
 - Default (no AI specified): falls back to Random
 
-**Status**: Not Started
+**Status**: Complete (400 tests)
 
 ---
 

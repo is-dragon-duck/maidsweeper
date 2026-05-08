@@ -28,6 +28,7 @@ public record LevelConfig
     public IReadOnlyList<Position> UnusedLocations { get; init; } = [];
     public IReadOnlyList<SpecialTileConfig> SpecialTiles { get; init; } = [];
     public AdjacencyRule AdjacencyRule { get; init; } = AdjacencyRule.King;
+    public AiType RivalAi { get; init; } = AiType.Random;
     public int InitialRivalReveal { get; init; }
     public UponFinishConfig? UponFinish { get; init; }
 }

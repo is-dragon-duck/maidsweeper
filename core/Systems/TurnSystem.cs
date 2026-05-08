@@ -1,6 +1,7 @@
 namespace Maidsweeper.Core.Systems;
 
 using Maidsweeper.Core.Models;
+using Maidsweeper.Core.Systems.AI;
 
 public static class TurnSystem
 {
@@ -37,32 +38,29 @@ public static class TurnSystem
     }
 
     /// <summary>
-    /// Executes the rival's turn: reveals 1 tile chosen by intent-weighted preference,
-    /// then decays intent points. Falls back to a random rival tile if intent points
-    /// are empty (e.g., on InitialRivalReveal before the first player turn).
+    /// Executes the rival's turn: dispatches to the level's configured AI, which
+    /// returns a list of positions to reveal. Reveals them in order, stopping at
+    /// the first non-rival reveal (which ends the rival's turn). Decays intent
+    /// points after all reveals complete.
+    /// Falls back to a random rival tile if the AI returns no picks (e.g., on
+    /// InitialRivalReveal before any intent points have been generated).
     /// </summary>
     public static GameState ExecuteRivalTurn(GameState state, Random rng)
     {
         // Reset Distraction stacks at start of rival turn (legacy, kept until full migration)
         state = state with { DistractionStacks = 0 };
 
-        Position? target = null;
+        var levelConfig = LevelConfigs.GetById(state.CurrentLevelId);
+        var aiType = levelConfig?.RivalAi ?? AiType.Random;
+        var ai = AiRegistry.Get(aiType);
+        var context = new AiContext { LevelConfig = levelConfig };
 
-        if (state.RivalIntentPoints.Count > 0)
+        var picks = ai.SelectTilesToReveal(state, state.RivalIntentPoints, context, rng);
+
+        if (picks.Count == 0)
         {
-            // Restrict to currently-revealable tiles (skip already-revealed/destroyed/etc.)
-            var eligible = state.RivalIntentPoints
-                .Where(kv => state.Board.IsUsablePosition(kv.Key)
-                             && !state.Board.GetTile(kv.Key).IsRevealed
-                             && !state.Board.GetTile(kv.Key).IsDestroyed)
-                .ToDictionary(kv => kv.Key, kv => kv.Value);
-
-            target = IntentSystem.PickHighestPoints(eligible, rng);
-        }
-
-        if (target == null)
-        {
-            // Fallback: random rival tile (used at floor start before any player turn)
+            // Fallback: pick a random rival tile (used at floor start before any
+            // player turn has generated intent points).
             var rivalTiles = state.Board.Tiles
                 .Where(t => state.Board.IsUsablePosition(t.Position)
                             && !t.IsRevealed && !t.IsDestroyed
@@ -70,19 +68,26 @@ public static class TurnSystem
                 .ToList();
             if (rivalTiles.Count > 0)
             {
-                target = rivalTiles[rng.Next(rivalTiles.Count)].Position;
+                picks = new[] { rivalTiles[rng.Next(rivalTiles.Count)].Position };
             }
         }
 
-        if (target.HasValue)
+        var revealedPositions = new List<Position>();
+        foreach (var pos in picks)
         {
             state = state with
             {
-                Board = BoardSystem.RevealTile(state.Board, target.Value, PlayerType.Rival)
+                Board = BoardSystem.RevealTile(state.Board, pos, PlayerType.Rival)
             };
+            revealedPositions.Add(pos);
 
-            // Decay intent points after the reveal
-            var decayed = IntentSystem.DecayIntent(state, new[] { target.Value });
+            var revealedTile = state.Board.GetTile(pos);
+            if (revealedTile.Owner != TileOwner.Rival) break;
+        }
+
+        if (revealedPositions.Count > 0)
+        {
+            var decayed = IntentSystem.DecayIntent(state, revealedPositions);
             state = state with { RivalIntentPoints = decayed };
         }
 
