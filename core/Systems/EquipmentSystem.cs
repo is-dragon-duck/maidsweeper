@@ -38,12 +38,19 @@ public static class EquipmentSystem
 
         if (HasEquipment(state, EquipmentEffectType.Handbag))
         {
-            state = DeckSystem.DrawCards(state, 2, rng);
+            // Pockets upgrades Handbag's +2 to +3.
+            var draws = HasEquipment(state, EquipmentEffectType.Pockets) ? 3 : 2;
+            state = DeckSystem.DrawCards(state, draws, rng);
         }
 
         if (HasEquipment(state, EquipmentEffectType.DustBunny))
         {
-            state = RevealRandomPlayerTile(state, rng);
+            // Dust Bunny chain: Baby Bunny (3) > Mated Pair (2) > Dust Bunny (1).
+            var reveals = HasEquipment(state, EquipmentEffectType.BabyBunny) ? 3
+                         : HasEquipment(state, EquipmentEffectType.MatedPair) ? 2
+                         : 1;
+            for (var i = 0; i < reveals; i++)
+                state = RevealRandomPlayerTile(state, rng);
         }
 
         if (HasEquipment(state, EquipmentEffectType.Hyperfocus))
@@ -165,6 +172,15 @@ public static class EquipmentSystem
             state = state with { RivalIntentPoints = points };
         }
 
+        if (HasEquipment(state, EquipmentEffectType.Mascara))
+        {
+            var points = new Dictionary<Position, int>(state.RivalIntentPoints);
+            var excluded = IntentSystem.GetExcludedPositions(state.Board);
+            IntentSystem.AddDistractionPoint(points, excluded, rng);
+            IntentSystem.AddDistractionPoint(points, excluded, rng);
+            state = state with { RivalIntentPoints = points };
+        }
+
         if (HasEquipment(state, EquipmentEffectType.Glasses))
         {
             state = CardEffectSystem.ExecuteTingle(state, rng, CardDefinitions.Tingle);
@@ -252,6 +268,11 @@ public static class EquipmentSystem
     {
         if (!HasEquipment(state, EquipmentEffectType.DoubleBroom)) return state;
 
+        // Broom chain: Quadruple (4) > Triple (3) > Double (2).
+        var brushCount = HasEquipment(state, EquipmentEffectType.QuadrupleBroom) ? 4
+                        : HasEquipment(state, EquipmentEffectType.TripleBroom) ? 3
+                        : 2;
+
         var neighbors = BoardSystem.GetNeighbors(state.Board, revealedPos)
             .Where(n =>
             {
@@ -269,7 +290,7 @@ public static class EquipmentSystem
         }
 
         var allOwners = new[] { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
-        foreach (var pos in neighbors.Take(2))
+        foreach (var pos in neighbors.Take(brushCount))
         {
             var tile = state.Board.GetTile(pos);
             var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
@@ -304,7 +325,10 @@ public static class EquipmentSystem
         if (revealedTile.Owner != TileOwner.Neutral) return (state, false);
         if (state.TurnNumber != 1) return (state, false);
         if (!HasEquipment(state, EquipmentEffectType.FrillyDress)) return (state, false);
-        if (state.Turn1NeutralReveals >= 4) return (state, false);
+
+        // Tea removes the 4-cap on Frilly Dress's turn-1 neutral suppression.
+        var hasTea = HasEquipment(state, EquipmentEffectType.Tea);
+        if (!hasTea && state.Turn1NeutralReveals >= 4) return (state, false);
 
         state = state with { Turn1NeutralReveals = state.Turn1NeutralReveals + 1 };
         return (state, true);
@@ -348,8 +372,28 @@ public static class EquipmentSystem
             EquipmentEffectType.BroomCloset => ApplyBroomCloset(state),
             EquipmentEffectType.Cocktail => ApplyCocktail(state, rng),
             EquipmentEffectType.Novel => ApplyNovel(state),
+            EquipmentEffectType.DiscoBall => ApplyDiscoBall(state),
             _ => state
         };
+    }
+
+    /// <summary>
+    /// Disco Ball: append 2 doubly-upgraded Tingles to the persistent deck.
+    /// </summary>
+    private static GameState ApplyDiscoBall(GameState state)
+    {
+        var deck = state.PersistentDeck.ToList();
+        for (var i = 0; i < 2; i++)
+        {
+            var tingle = CardDefinitions.Tingle with
+            {
+                Id = $"discoball_{Guid.NewGuid():N}",
+                Enhanced = true,
+                BonusSpoon = true
+            };
+            deck.Add(tingle);
+        }
+        return state with { PersistentDeck = deck };
     }
 
     /// <summary>
@@ -519,15 +563,23 @@ public static class EquipmentSystem
     }
 
     /// <summary>
-    /// Bleach ongoing effect: when adding a Spritz/Sweep/Brush to the persistent deck,
-    /// auto-enhance it if Bleach is owned.
+    /// Ongoing deck-add transforms: Bleach auto-enhances Spritz/Sweep/Brush; DIY Gel
+    /// auto-enhances any card type. Both stack — a Sweep added with both equipped is
+    /// enhanced (idempotent).
     /// </summary>
     public static Card ApplyBleachToNewCard(GameState state, Card card)
     {
-        if (!HasEquipment(state, EquipmentEffectType.Bleach)) return card;
-        if (!IsBleachableEffect(card.EffectType)) return card;
-        if (card.Enhanced) return card;
-        return card with { Enhanced = true };
+        if (HasEquipment(state, EquipmentEffectType.Bleach)
+            && IsBleachableEffect(card.EffectType)
+            && !card.Enhanced)
+        {
+            card = card with { Enhanced = true };
+        }
+        if (HasEquipment(state, EquipmentEffectType.DiyGel) && !card.Enhanced)
+        {
+            card = card with { Enhanced = true };
+        }
+        return card;
     }
 
     /// <summary>

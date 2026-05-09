@@ -64,6 +64,7 @@ public static class ShopSystem
         var ownedTypes = state.Equipment.Select(e => e.EffectType).ToHashSet();
         var equipmentPool = EquipmentDefinitions.CreateOfferingPool()
             .Where(e => !ownedTypes.Contains(e.EffectType))
+            .Where(e => e.Prereqs.All(p => ownedTypes.Contains(p)))
             .ToList();
         Shuffle(equipmentPool, rng);
         var equipmentPicks = equipmentPool.Take(2).ToList();

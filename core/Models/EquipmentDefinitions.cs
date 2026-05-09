@@ -191,6 +191,116 @@ public static class EquipmentDefinitions
         EffectType = EquipmentEffectType.Novel
     };
 
+    // --- Stage 5 Prerequisite Chains (M47) ---
+
+    public static Equipment Tea => new()
+    {
+        Id = "",
+        Name = "Tea",
+        Description = "Removes the cap on Frilly Dress: unlimited turn-1 neutral reveals don't end your turn.",
+        EffectType = EquipmentEffectType.Tea,
+        Prereqs = [EquipmentEffectType.FrillyDress]
+    };
+
+    public static Equipment Mascara => new()
+    {
+        Id = "",
+        Name = "Mascara",
+        Description = "Adds 2 more rival distractions at turn start (stacks with Eyeshadow).",
+        EffectType = EquipmentEffectType.Mascara,
+        Prereqs = [EquipmentEffectType.Eyeshadow]
+    };
+
+    public static Equipment Pockets => new()
+    {
+        Id = "",
+        Name = "Pockets",
+        Description = "Draws +3 cards on turn 1 (upgrade of Handbag's +2).",
+        EffectType = EquipmentEffectType.Pockets,
+        Prereqs = [EquipmentEffectType.Handbag]
+    };
+
+    public static Equipment MatedPair => new()
+    {
+        Id = "",
+        Name = "Mated Pair",
+        Description = "Reveal 2 random player tiles at floor start (upgrade of Dust Bunny's 1).",
+        EffectType = EquipmentEffectType.MatedPair,
+        Prereqs = [EquipmentEffectType.DustBunny]
+    };
+
+    public static Equipment BabyBunny => new()
+    {
+        Id = "",
+        Name = "Baby Bunny",
+        Description = "Reveal 3 random player tiles at floor start (upgrade of Mated Pair's 2).",
+        EffectType = EquipmentEffectType.BabyBunny,
+        Prereqs = [EquipmentEffectType.MatedPair]
+    };
+
+    public static Equipment TripleBroom => new()
+    {
+        Id = "",
+        Name = "Triple Broom",
+        Description = "When you reveal a tile, Brush 3 random adjacent (upgrade of Double Broom's 2).",
+        EffectType = EquipmentEffectType.TripleBroom,
+        Prereqs = [EquipmentEffectType.DoubleBroom]
+    };
+
+    public static Equipment QuadrupleBroom => new()
+    {
+        Id = "",
+        Name = "Quadruple Broom",
+        Description = "When you reveal a tile, Brush 4 random adjacent (upgrade of Triple Broom's 3).",
+        EffectType = EquipmentEffectType.QuadrupleBroom,
+        Prereqs = [EquipmentEffectType.TripleBroom]
+    };
+
+    public static Equipment DiyGel => new()
+    {
+        Id = "",
+        Name = "DIY Gel",
+        Description = "All future cards added to your deck are automatically enhanced.",
+        EffectType = EquipmentEffectType.DiyGel,
+        Prereqs = [EquipmentEffectType.Progesterone]
+    };
+
+    public static Equipment Geode => new()
+    {
+        Id = "",
+        Name = "Geode",
+        Description = "Playing Tingle draws a card.",
+        EffectType = EquipmentEffectType.Geode,
+        Prereqs = [EquipmentEffectType.CrystalBall]
+    };
+
+    public static Equipment DiscoBall => new()
+    {
+        Id = "",
+        Name = "Disco Ball",
+        Description = "On acquisition: adds 2 doubly-upgraded Tingles to your deck.",
+        EffectType = EquipmentEffectType.DiscoBall,
+        Prereqs = [EquipmentEffectType.Geode]
+    };
+
+    public static Equipment Fanfic => new()
+    {
+        Id = "",
+        Name = "Fanfic",
+        Description = "Playing Sarcastic Recall draws a card and costs 1 copper.",
+        EffectType = EquipmentEffectType.Fanfic,
+        Prereqs = [EquipmentEffectType.Novel]
+    };
+
+    public static Equipment Favor => new()
+    {
+        Id = "",
+        Name = "Favor",
+        Description = "Win the floor when only 1 player tile remains unrevealed.",
+        EffectType = EquipmentEffectType.Favor,
+        Prereqs = [EquipmentEffectType.Tea, EquipmentEffectType.Cocktail]
+    };
+
     /// <summary>
     /// Returns all equipment templates available as offerings.
     /// </summary>
@@ -202,7 +312,10 @@ public static class EquipmentDefinitions
             Bleach, Estrogen, Progesterone, CrystalBall, Boots, Tiara,
             Mop, Espresso,
             Hyperfocus, Choker, Mirror, BusyCanary, DoubleBroom,
-            BroomCloset, Cocktail, Novel
+            BroomCloset, Cocktail, Novel,
+            Tea, Mascara, Pockets, MatedPair, BabyBunny,
+            TripleBroom, QuadrupleBroom, DiyGel,
+            Geode, DiscoBall, Fanfic, Favor
         ];
     }
 }

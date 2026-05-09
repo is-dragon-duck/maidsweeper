@@ -328,6 +328,13 @@ public static class CardEffectSystem
             state = state with { Spoons = state.Spoons + 1 };
         }
 
+        // Fanfic: playing Sarcastic Recall draws a card and costs 1 copper.
+        if (EquipmentSystem.HasEquipment(state, EquipmentEffectType.Fanfic))
+        {
+            state = DeckSystem.DrawCards(state, 1, rng);
+            state = state with { Copper = Math.Max(0, state.Copper - 1) };
+        }
+
         var clueResults = ClueSystem.GenerateSarcasticClue(state, rng, card.Enhanced);
 
         foreach (var result in clueResults)
@@ -632,7 +639,14 @@ public static class CardEffectSystem
         var target = pool[rng.Next(pool.Count)];
 
         var exactOwner = new HashSet<TileOwner> { target.Owner };
-        return AnnotationSystem.AddOwnerSubset(state, target.Position, exactOwner);
+        state = AnnotationSystem.AddOwnerSubset(state, target.Position, exactOwner);
+
+        // Geode: playing Tingle draws a card.
+        if (EquipmentSystem.HasEquipment(state, EquipmentEffectType.Geode))
+        {
+            state = DeckSystem.DrawCards(state, 1, rng);
+        }
+        return state;
     }
 
     /// <summary>

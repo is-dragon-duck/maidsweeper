@@ -401,7 +401,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Each chained effect: one focused test
 - Chain replacement: Pockets replaces Handbag's behavior (or stacks — verify against alpha)
 
-**Status**: Not Started
+**Status**: Complete (540 tests; 18 new in PrereqChainEquipmentTests)
 
 ---
 

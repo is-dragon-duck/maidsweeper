@@ -180,13 +180,17 @@ public static class TurnSystem
             return GameStatus.Lost;
         }
 
-        // Check if all non-destroyed player tiles are revealed (win)
-        // Destroyed player tiles count as "found"
-        var allPlayerDone = board.Tiles
+        // Check if all non-destroyed player tiles are revealed (win).
+        // Destroyed player tiles count as "found".
+        // Favor equipment relaxes the threshold by 1 (win with 1 player tile remaining).
+        var playerTiles = board.Tiles
             .Where(t => board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Player && !t.IsDestroyed)
-            .All(t => t.IsRevealed);
+            .ToList();
+        var revealedPlayerCount = playerTiles.Count(t => t.IsRevealed);
+        var hasFavor = EquipmentSystem.HasEquipment(state, EquipmentEffectType.Favor);
+        var winThreshold = hasFavor ? Math.Max(0, playerTiles.Count - 1) : playerTiles.Count;
 
-        if (allPlayerDone)
+        if (revealedPlayerCount >= winThreshold)
             return GameStatus.Won;
 
         return GameStatus.Playing;

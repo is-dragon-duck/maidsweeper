@@ -181,5 +181,19 @@ public enum EquipmentEffectType
     DoubleBroom,   // On player tile reveal: Brush 2 random adjacent unrevealed tiles
     BroomCloset,   // On acquisition: remove all Spritz from deck, add 3 Sweep cards
     Cocktail,      // On acquisition: remove all Scurry from deck, add 2 random bonus-spoon cards
-    Novel          // On acquisition: replace all Recall cards with doubly-upgraded Sarcastic Recall
+    Novel,         // On acquisition: replace all Recall cards with doubly-upgraded Sarcastic Recall
+
+    // --- Stage 5 Prerequisite Chains (M47) ---
+    Tea,            // Prereq Frilly Dress: unlimited turn-1 neutral reveals
+    Mascara,        // Prereq Eyeshadow: +2 distractions at turn start (Eyeshadow stacks)
+    Pockets,        // Prereq Handbag: +3 cards on turn 1 (replaces +2)
+    MatedPair,      // Prereq Dust Bunny: reveal 2 player tiles at floor start (replaces 1)
+    BabyBunny,      // Prereq Mated Pair: reveal 3 player tiles at floor start (replaces 2)
+    TripleBroom,    // Prereq Double Broom: brush 3 random adjacent on reveal (replaces 2)
+    QuadrupleBroom, // Prereq Triple Broom: brush 4 random adjacent on reveal (replaces 3)
+    DiyGel,         // Prereq Progesterone: future cards added to deck are auto-enhanced
+    Geode,          // Prereq Crystal Ball: playing Tingle draws a card
+    DiscoBall,      // Prereq Geode: on acquisition, add 2 doubly-upgraded Tingles
+    Fanfic,         // Prereq Novel: playing Sarcastic Recall draws a card and costs 1 copper
+    Favor           // Prereq Tea + Cocktail: win the floor with 1 player tile remaining
 }

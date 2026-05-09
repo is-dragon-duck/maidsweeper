@@ -329,6 +329,7 @@ public static class CampaignSystem
         var ownedTypes = owned.Select(e => e.EffectType).ToHashSet();
         var pool = EquipmentDefinitions.CreateOfferingPool()
             .Where(e => !ownedTypes.Contains(e.EffectType))
+            .Where(e => e.Prereqs.All(p => ownedTypes.Contains(p)))
             .ToList();
 
         var id = 0;
