@@ -12,8 +12,7 @@ public static class AiRegistry
         AiType.Random => new RandomAi(),
         AiType.NoGuess => new NoGuessAi(),
         AiType.Conservative => new ConservativeAi(),
-        // M42 falls back to Random until Reasoning is implemented
-        AiType.Reasoning => new RandomAi(),
+        AiType.Reasoning => new ReasoningAi(),
         _ => new RandomAi()
     };
 }

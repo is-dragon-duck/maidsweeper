@@ -43,6 +43,12 @@ public sealed record ExclusionAnalysis
 {
     public IReadOnlyList<Position> GuaranteedRivals { get; init; } = Array.Empty<Position>();
     public IReadOnlyCollection<Position> RuledOutRivals { get; init; } = Array.Empty<Position>();
+    /// <summary>
+    /// For each unrevealed tile, the set of owner types that constraint propagation
+    /// hasn't ruled out. Used by the Reasoning AI's Monte Carlo sampler.
+    /// </summary>
+    public IReadOnlyDictionary<Position, IReadOnlySet<TileOwner>> Possibilities { get; init; }
+        = new Dictionary<Position, IReadOnlySet<TileOwner>>();
 }
 
 /// <summary>
@@ -172,6 +178,7 @@ public static class ExclusionLogic
     {
         var guaranteed = new List<Position>();
         var ruledOut = new HashSet<Position>();
+        var possibilities = new Dictionary<Position, IReadOnlySet<TileOwner>>();
 
         foreach (var (pos, f) in flags)
         {
@@ -182,12 +189,20 @@ public static class ExclusionLogic
                 guaranteed.Add(pos);
             if (!f.Rival)
                 ruledOut.Add(pos);
+
+            var possible = new HashSet<TileOwner>();
+            if (f.Player) possible.Add(TileOwner.Player);
+            if (f.Rival) possible.Add(TileOwner.Rival);
+            if (f.Neutral) possible.Add(TileOwner.Neutral);
+            if (f.Noble) possible.Add(TileOwner.Noble);
+            possibilities[pos] = possible;
         }
 
         return new ExclusionAnalysis
         {
             GuaranteedRivals = guaranteed,
-            RuledOutRivals = ruledOut
+            RuledOutRivals = ruledOut,
+            Possibilities = possibilities
         };
     }
 

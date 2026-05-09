@@ -272,7 +272,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Performance smoke test: turn completes in < 500ms on 10×10 board
 - Determinism with seeded RNG
 
-**Status**: Not Started (largest single milestone — consider splitting into a/b if MC and hill-climbing diverge)
+**Status**: Complete (471 tests; hill-climbing tension reduction deferred — see stretch goals)
 
 ---
 
