@@ -10,4 +10,9 @@ public record Card
     public required CardEffectType EffectType { get; init; }
     public bool Enhanced { get; init; }
     public bool BonusSpoon { get; init; }
+    /// <summary>
+    /// Set on directional card variants (Gaze and Fetch) to encode which way the
+    /// scan walks from the origin tile. Null on non-directional cards.
+    /// </summary>
+    public LineDirection? Direction { get; init; }
 }

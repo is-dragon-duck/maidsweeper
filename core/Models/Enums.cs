@@ -85,7 +85,23 @@ public enum CardEffectType
 
     // --- Stage 4 Recall variants ---
     RecallVague,     // Broader but weaker clue pips (5 targets, 8 draws)
-    RecallSarcastic  // Anti-pips showing where tiles probably AREN'T yours
+    RecallSarcastic, // Anti-pips showing where tiles probably AREN'T yours
+
+    // --- Stage 5 directional cards (M43) ---
+    Gaze,    // Scan in direction; annotate first unrevealed rival; mark others as "not rival"
+    Fetch    // Scan in direction; reveal all tiles of the most-common owner type
+}
+
+/// <summary>
+/// Cardinal direction encoded into Gaze/Fetch card variants. The card's Direction
+/// field selects which way the scan walks from the origin tile.
+/// </summary>
+public enum LineDirection
+{
+    Up,
+    Down,
+    Left,
+    Right
 }
 
 /// <summary>

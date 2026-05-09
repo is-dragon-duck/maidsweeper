@@ -276,6 +276,38 @@ public static class CardDefinitions
         EffectType = CardEffectType.RecallSarcastic
     };
 
+    // --- Stage 5 Directional Cards (M43) ---
+
+    private static Card MakeGaze(LineDirection dir, string arrow) => new()
+    {
+        Id = "",
+        Name = $"Gaze {arrow}",
+        Description = $"Scan {dir} from a target tile. Annotate the first unrevealed rival; mark the rest as not-rival.",
+        Cost = 1,
+        EffectType = CardEffectType.Gaze,
+        Direction = dir
+    };
+
+    private static Card MakeFetch(LineDirection dir, string arrow) => new()
+    {
+        Id = "",
+        Name = $"Fetch {arrow}",
+        Description = $"Scan {dir} from a target tile. Reveal all tiles of the most-common owner type.",
+        Cost = 1,
+        EffectType = CardEffectType.Fetch,
+        Direction = dir
+    };
+
+    public static Card GazeUp => MakeGaze(LineDirection.Up, "↑");
+    public static Card GazeDown => MakeGaze(LineDirection.Down, "↓");
+    public static Card GazeLeft => MakeGaze(LineDirection.Left, "←");
+    public static Card GazeRight => MakeGaze(LineDirection.Right, "→");
+
+    public static Card FetchUp => MakeFetch(LineDirection.Up, "↑");
+    public static Card FetchDown => MakeFetch(LineDirection.Down, "↓");
+    public static Card FetchLeft => MakeFetch(LineDirection.Left, "←");
+    public static Card FetchRight => MakeFetch(LineDirection.Right, "→");
+
     /// <summary>
     /// Creates the 10-card starter deck with unique IDs.
     /// 1x Recall - Imperious, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
@@ -311,7 +343,9 @@ public static class CardDefinitions
             Argue, AcceptHelp, Eavesdrop, Peek, Explode, Deliver,
             Brat, Ramble, Glaze, Mask, Nap,
             Read, Hydrate, Adopt,
-            RecallVague, RecallSarcastic
+            RecallVague, RecallSarcastic,
+            GazeUp, GazeDown, GazeLeft, GazeRight,
+            FetchUp, FetchDown, FetchLeft, FetchRight
         ];
     }
 }

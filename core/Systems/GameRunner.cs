@@ -171,7 +171,9 @@ public static class GameRunner
 
         // Check if a revealing card ended the turn (newly revealed non-Player tile)
         var turnEnded = false;
-        if (card.EffectType == CardEffectType.Scurry || card.EffectType == CardEffectType.AcceptHelp)
+        if (card.EffectType == CardEffectType.Scurry
+            || card.EffectType == CardEffectType.AcceptHelp
+            || card.EffectType == CardEffectType.Fetch)
         {
             foreach (var tile in state.Board.Tiles)
             {

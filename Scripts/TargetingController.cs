@@ -56,6 +56,8 @@ public class TargetingController
         CardEffectType.Deliver => 1,
         CardEffectType.AcceptHelp => 1,
         CardEffectType.Brat => 1,
+        CardEffectType.Gaze => 1,
+        CardEffectType.Fetch => 1,
         _ => 0 // Recall, Tingle, Twirl, Caffeinate, Breathe, LockIn, Rendezvous, Ramble, Glaze, Mollify, Mask, Nap are immediate/special
     };
 

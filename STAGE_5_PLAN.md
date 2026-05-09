@@ -296,7 +296,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Each direction works (4 tests) — parameterized
 - Cards in reward pool
 
-**Status**: Not Started
+**Status**: Complete (489 tests; targeting UI deferred to Stage-5-UI milestone)
 
 ---
 

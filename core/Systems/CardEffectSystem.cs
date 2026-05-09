@@ -63,6 +63,8 @@ public static class CardEffectSystem
                 CardEffectType.Adopt => ExecuteAdopt(state, card),
                 CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
                 CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
+                CardEffectType.Gaze => ExecuteGaze(state, targets, card),
+                CardEffectType.Fetch => ExecuteFetch(state, targets, card),
                 CardEffectType.Mask => throw new InvalidOperationException("Use PlayMaskedCard for Mask"),
                 CardEffectType.Nap => throw new InvalidOperationException("Use PlayNap for Nap"),
                 _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
@@ -231,6 +233,8 @@ public static class CardEffectSystem
             CardEffectType.Adopt => ExecuteAdopt(state, card),
             CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
             CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
+            CardEffectType.Gaze => ExecuteGaze(state, targets, card),
+            CardEffectType.Fetch => ExecuteFetch(state, targets, card),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
         };
     }
@@ -329,8 +333,157 @@ public static class CardEffectSystem
         return state with { RecallPlayedThisFloor = true };
     }
 
+    // ===========================================================
+    // Stage 5 directional cards (M43)
+    // ===========================================================
+
     /// <summary>
-    /// Scurry: Target 2 unrevealed tiles. Reveals the safer one.
+    /// Gaze: from a target tile, scan in the card's `Direction` for the first unrevealed
+    /// rival. Annotate it as `{Rival}`. Annotate all other checked tiles before/after as
+    /// `{Player, Neutral, Noble}` (not-rival). Line stops at unrevealed sanctums and
+    /// at unreachable inner tiles. Revealed tiles are passed through (not annotated).
+    /// </summary>
+    public static GameState ExecuteGaze(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Gaze requires exactly 1 target tile");
+        if (card.Direction == null)
+            throw new ArgumentException("Gaze card must have a Direction");
+
+        var checkedPositions = ScanLine(state.Board, targets[0], card.Direction.Value);
+
+        Position? foundRival = null;
+        foreach (var pos in checkedPositions)
+        {
+            if (state.Board.GetTile(pos).Owner == TileOwner.Rival)
+            {
+                foundRival = pos;
+                break;
+            }
+        }
+
+        // Annotate found rival
+        if (foundRival != null)
+        {
+            state = AnnotationSystem.AddOwnerSubset(state, foundRival.Value,
+                new HashSet<TileOwner> { TileOwner.Rival });
+        }
+
+        // Annotate other checked tiles as "not rival"
+        var notRival = new HashSet<TileOwner> { TileOwner.Player, TileOwner.Neutral, TileOwner.Noble };
+        foreach (var pos in checkedPositions)
+        {
+            if (foundRival.HasValue && pos == foundRival.Value) continue;
+            state = AnnotationSystem.AddOwnerSubset(state, pos, notRival);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Fetch: from a target tile, scan in the card's `Direction` collecting unrevealed
+    /// tiles. Determine the most-common owner type (tiebreak: Player > Neutral > Rival > Noble).
+    /// Reveal all checked tiles of that owner. Annotate the rest as "anything except majority".
+    /// </summary>
+    public static GameState ExecuteFetch(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length != 1)
+            throw new ArgumentException("Fetch requires exactly 1 target tile");
+        if (card.Direction == null)
+            throw new ArgumentException("Fetch card must have a Direction");
+
+        var checkedPositions = ScanLine(state.Board, targets[0], card.Direction.Value);
+        if (checkedPositions.Count == 0) return state;
+
+        // Tally owner counts
+        var counts = new Dictionary<TileOwner, int>
+        {
+            [TileOwner.Player] = 0, [TileOwner.Neutral] = 0,
+            [TileOwner.Rival] = 0, [TileOwner.Noble] = 0
+        };
+        foreach (var pos in checkedPositions)
+        {
+            counts[state.Board.GetTile(pos).Owner]++;
+        }
+
+        // Tiebreak: safety order Player > Neutral > Rival > Noble
+        var safetyOrder = new[] { TileOwner.Player, TileOwner.Neutral, TileOwner.Rival, TileOwner.Noble };
+        var majority = safetyOrder.OrderByDescending(o => counts[o]).First();
+        if (counts[majority] == 0) return state;
+
+        // Reveal majority-owner tiles
+        foreach (var pos in checkedPositions)
+        {
+            if (state.Board.GetTile(pos).Owner != majority) continue;
+            var newBoard = BoardSystem.RevealTile(state.Board, pos, PlayerType.Player);
+            state = state with { Board = newBoard };
+        }
+
+        // Annotate non-majority checked tiles as "anything but majority"
+        var notMajority = new HashSet<TileOwner> { TileOwner.Player, TileOwner.Neutral, TileOwner.Rival, TileOwner.Noble };
+        notMajority.Remove(majority);
+        foreach (var pos in checkedPositions)
+        {
+            var tile = state.Board.GetTile(pos);
+            if (tile.IsRevealed) continue; // already revealed (majority or partial)
+            state = AnnotationSystem.AddOwnerSubset(state, pos, notMajority);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Walks a 4-directional line starting from the given origin and returns every
+    /// unrevealed, processable tile encountered. Stops on:
+    ///   - out-of-bounds
+    ///   - unrevealed sanctum (M41 line-blocking rule)
+    ///   - unreachable inner tile (M41)
+    /// Revealed tiles are passed through (line continues, but they aren't returned).
+    /// </summary>
+    private static List<Position> ScanLine(Board board, Position origin, LineDirection direction)
+    {
+        var (dRow, dCol) = direction switch
+        {
+            LineDirection.Up => (-1, 0),
+            LineDirection.Down => (1, 0),
+            LineDirection.Left => (0, -1),
+            LineDirection.Right => (0, 1),
+            _ => (0, 0)
+        };
+
+        var result = new List<Position>();
+        var current = origin;
+
+        // Process the origin first (same step rules)
+        while (true)
+        {
+            if (!board.IsUsablePosition(current)) break;
+            var tile = board.GetTile(current);
+            if (tile.IsDestroyed) break;
+
+            if (tile.IsInner && !BoardSystem.CanReachInnerTile(board, current))
+                break; // Unreachable inner blocks the line
+
+            if (tile.IsRevealed)
+            {
+                // Pass through: don't add to result, but continue line
+            }
+            else if (tile.IsSanctum)
+            {
+                // Unrevealed sanctum blocks the line; don't add and stop
+                break;
+            }
+            else
+            {
+                result.Add(current);
+            }
+
+            current = new Position(current.Row + dRow, current.Col + dCol);
+            if (dRow == 0 && dCol == 0) break; // safety
+        }
+
+        return result;
+    }
     /// Safety: Player(4) > Neutral(3) > Rival(2) > Mine(1).
     /// Non-revealed tiles get an ownerSubset annotation of types at-most-as-safe as the revealed tile.
     /// </summary>
