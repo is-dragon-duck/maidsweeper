@@ -65,6 +65,8 @@ public static class CardEffectSystem
                 CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
                 CardEffectType.Gaze => ExecuteGaze(state, targets, card),
                 CardEffectType.Fetch => ExecuteFetch(state, targets, card),
+                CardEffectType.Pose => ExecutePose(state, card, rng),
+                CardEffectType.Taunt => ExecuteTaunt(state, targets, card),
                 CardEffectType.Mask => throw new InvalidOperationException("Use PlayMaskedCard for Mask"),
                 CardEffectType.Nap => throw new InvalidOperationException("Use PlayNap for Nap"),
                 _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
@@ -235,6 +237,8 @@ public static class CardEffectSystem
             CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
             CardEffectType.Gaze => ExecuteGaze(state, targets, card),
             CardEffectType.Fetch => ExecuteFetch(state, targets, card),
+            CardEffectType.Pose => ExecutePose(state, card, rng),
+            CardEffectType.Taunt => ExecuteTaunt(state, targets, card),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
         };
     }
@@ -430,6 +434,57 @@ public static class CardEffectSystem
         }
 
         return state;
+    }
+
+    // ===========================================================
+    // Stage 5 interaction-twist cards (M44)
+    // ===========================================================
+
+    /// <summary>
+    /// Pose: spawn a courtier on a random unrevealed player tile (no targeting).
+    /// The underlying player tile is unaffected — the courtier moves when
+    /// interacted with, just like initially-placed courtiers.
+    /// </summary>
+    public static GameState ExecutePose(GameState state, Card card, Random rng)
+    {
+        var candidates = state.Board.Tiles
+            .Where(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed
+                        && t.Owner == TileOwner.Player
+                        && !t.IsCourtier)
+            .ToList();
+        if (candidates.Count == 0) return state;
+
+        var pick = candidates[rng.Next(candidates.Count)];
+        var moveTarget = BoardSystem.SelectCourtierTarget(state.Board, pick.Position, rng);
+        var spawned = pick
+            .WithSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = moveTarget };
+
+        var newTiles = state.Board.Tiles.ToList();
+        newTiles[state.Board.TileIndex(pick.Position)] = spawned;
+        return state with { Board = state.Board with { Tiles = newTiles } };
+    }
+
+    /// <summary>
+    /// Taunt: tag N target tiles. Creates a TauntEffect with required-reveals = N-1.
+    /// During subsequent rival turns, the rival's chained reveals stop early once
+    /// any active Taunt's threshold is met.
+    /// </summary>
+    public static GameState ExecuteTaunt(GameState state, Position[]? targets, Card card)
+    {
+        if (targets == null || targets.Length == 0)
+            throw new ArgumentException("Taunt requires at least 1 target tile");
+
+        var positions = new HashSet<Position>(targets);
+        var taunt = new TauntEffect
+        {
+            Positions = positions,
+            RequiredReveals = Math.Max(1, targets.Length - 1)
+        };
+
+        var newTaunts = state.ActiveTaunts.ToList();
+        newTaunts.Add(taunt);
+        return state with { ActiveTaunts = newTaunts };
     }
 
     /// <summary>

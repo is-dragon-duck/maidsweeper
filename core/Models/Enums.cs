@@ -89,7 +89,11 @@ public enum CardEffectType
 
     // --- Stage 5 directional cards (M43) ---
     Gaze,    // Scan in direction; annotate first unrevealed rival; mark others as "not rival"
-    Fetch    // Scan in direction; reveal all tiles of the most-common owner type
+    Fetch,   // Scan in direction; reveal all tiles of the most-common owner type
+
+    // --- Stage 5 interaction-twist cards (M44) ---
+    Pose,    // Random unrevealed player tile gets a courtier (alpha: Donut)
+    Taunt    // Tag N tiles; rival turn ends early if she reveals N-1 of them
 }
 
 /// <summary>

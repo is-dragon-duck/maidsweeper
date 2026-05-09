@@ -33,6 +33,7 @@ public class TargetingController
             1 => "Select a tile",
             2 when SelectedTargets.Count == 0 => "Select first tile",
             2 when SelectedTargets.Count == 1 => "Select second tile",
+            > 2 => $"Select tile {SelectedTargets.Count + 1} of {TargetsNeeded}",
             _ => ""
         },
         _ => ""
@@ -58,7 +59,8 @@ public class TargetingController
         CardEffectType.Brat => 1,
         CardEffectType.Gaze => 1,
         CardEffectType.Fetch => 1,
-        _ => 0 // Recall, Tingle, Twirl, Caffeinate, Breathe, LockIn, Rendezvous, Ramble, Glaze, Mollify, Mask, Nap are immediate/special
+        CardEffectType.Taunt => 4,
+        _ => 0 // Recall, Tingle, Twirl, Caffeinate, Breathe, LockIn, Rendezvous, Ramble, Glaze, Mollify, Mask, Nap, Pose are immediate/special
     };
 
     /// <summary>

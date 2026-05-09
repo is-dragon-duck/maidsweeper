@@ -86,6 +86,14 @@ public static class TurnSystem
 
             var revealedTile = state.Board.GetTile(pos);
             if (revealedTile.Owner != TileOwner.Rival) break;
+
+            // Taunt: end the chain early if any active Taunt's threshold is met,
+            // and consume the triggered Taunts so they don't fire again.
+            if (TryConsumeTriggeredTaunts(state, out var afterTaunts))
+            {
+                state = afterTaunts;
+                break;
+            }
         }
 
         if (revealedPositions.Count > 0)
@@ -95,6 +103,41 @@ public static class TurnSystem
         }
 
         return state;
+    }
+
+    /// <summary>
+    /// Returns true (and the updated state) if any active Taunt has met its
+    /// required-reveals threshold. Triggered Taunts are removed from
+    /// <see cref="GameState.ActiveTaunts"/> so they don't end every subsequent turn.
+    /// </summary>
+    private static bool TryConsumeTriggeredTaunts(GameState state, out GameState newState)
+    {
+        var triggered = new List<TauntEffect>();
+        var remaining = new List<TauntEffect>();
+
+        foreach (var taunt in state.ActiveTaunts)
+        {
+            var revealedByRival = taunt.Positions.Count(p =>
+            {
+                if (!state.Board.IsValidPosition(p)) return false;
+                var tile = state.Board.GetTile(p);
+                return tile.IsRevealed && tile.RevealedBy == PlayerType.Rival;
+            });
+
+            if (revealedByRival >= taunt.RequiredReveals)
+                triggered.Add(taunt);
+            else
+                remaining.Add(taunt);
+        }
+
+        if (triggered.Count == 0)
+        {
+            newState = state;
+            return false;
+        }
+
+        newState = state with { ActiveTaunts = remaining };
+        return true;
     }
 
     /// <summary>

@@ -319,7 +319,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Taunt: rival reveals N (or fewer) without trigger → no early end
 - Cards in reward pool
 
-**Status**: Not Started
+**Status**: Complete (500 tests; targeting UI deferred to Stage-5-UI milestone)
 
 ---
 

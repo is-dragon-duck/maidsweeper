@@ -40,6 +40,10 @@ public record GameState
     // floor can absorb without completing as a win. Initialized from LevelConfig.RivalMineProtection.
     public int RivalMineProtectionCount { get; init; }
 
+    // Active Taunt effects (per-floor): each one ends the rival's turn early when
+    // enough of its tagged positions have been revealed by the rival.
+    public IReadOnlyList<TauntEffect> ActiveTaunts { get; init; } = [];
+
     // Shop tracking
     public int ShopVisitCount { get; init; }
     public int VisitingBunnyPendingReveals { get; init; }

@@ -308,6 +308,26 @@ public static class CardDefinitions
     public static Card FetchLeft => MakeFetch(LineDirection.Left, "←");
     public static Card FetchRight => MakeFetch(LineDirection.Right, "→");
 
+    // --- Stage 5 Interaction-Twist Cards (M44) ---
+
+    public static Card Pose => new()
+    {
+        Id = "",
+        Name = "Pose",
+        Description = "Spawn a courtier on a random unrevealed player tile.",
+        Cost = 1,
+        EffectType = CardEffectType.Pose
+    };
+
+    public static Card Taunt => new()
+    {
+        Id = "",
+        Name = "Taunt",
+        Description = "Tag 4 tiles. If the rival reveals 3 of them, her turn ends early.",
+        Cost = 1,
+        EffectType = CardEffectType.Taunt
+    };
+
     /// <summary>
     /// Creates the 10-card starter deck with unique IDs.
     /// 1x Recall - Imperious, 3x Spritz, 3x Tingle, 2x Scurry, 1x Twirl.
@@ -345,7 +365,8 @@ public static class CardDefinitions
             Read, Hydrate, Adopt,
             RecallVague, RecallSarcastic,
             GazeUp, GazeDown, GazeLeft, GazeRight,
-            FetchUp, FetchDown, FetchLeft, FetchRight
+            FetchUp, FetchDown, FetchLeft, FetchRight,
+            Pose, Taunt
         ];
     }
 }

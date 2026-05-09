@@ -426,6 +426,8 @@ public static class CampaignSystem
             RecallPlayedThisFloor = false,
             // Reset per-floor rival mine protection from this level's config
             RivalMineProtectionCount = nextLevel.RivalMineProtection,
+            // Reset per-floor Taunt effects
+            ActiveTaunts = new List<TauntEffect>(),
             // Persist multi-floor food stacks
             ReadStacks = state.ReadStacks,
             HydrateStacks = state.HydrateStacks,
