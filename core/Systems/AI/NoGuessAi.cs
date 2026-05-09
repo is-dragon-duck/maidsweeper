@@ -60,7 +60,9 @@ public sealed class NoGuessAi : IRivalAi
                 continue;
             }
             var tile = state.Board.GetTile(key);
-            if (tile.IsRevealed || tile.IsDestroyed || tile.Owner == TileOwner.Noble)
+            if (tile.IsRevealed || tile.IsDestroyed
+                || tile.Owner == TileOwner.Noble
+                || tile.IsLoungingNoble)
             {
                 pool.Remove(key);
             }

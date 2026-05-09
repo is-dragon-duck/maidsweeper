@@ -47,6 +47,18 @@ public record LevelConfig
     /// and Reasoning AIs to filter their candidate pool.
     /// </summary>
     public bool RivalNeverNobles { get; init; }
+    /// <summary>
+    /// Maps to the alpha config's `rivalPlacesMines`. After every rival turn,
+    /// places this many lounging-noble overlays on random unrevealed
+    /// player/neutral tiles that don't already have one.
+    /// </summary>
+    public int RivalPlacesMines { get; init; }
+    /// <summary>
+    /// Maps to the alpha config's `rivalMineProtection`. Initial number of times
+    /// the rival can safely reveal a noble (regular or lounging) without ending
+    /// the floor. Each protected reveal awards 5 copper.
+    /// </summary>
+    public int RivalMineProtection { get; init; }
     public UponFinishConfig? UponFinish { get; init; }
 }
 

@@ -206,7 +206,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Existing test: player win on revealing all player tiles still passes
 - Excuses doesn't trigger from rival noble reveals (only player ones)
 
-**Status**: Not Started
+**Status**: Complete (442 tests; rendering deferred)
 
 ---
 

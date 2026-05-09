@@ -36,6 +36,10 @@ public record GameState
     // Equipment tracking (per-floor)
     public int Turn1NeutralReveals { get; init; }
 
+    // Rival mine protection (per-floor): remaining # of rival-revealed nobles the
+    // floor can absorb without completing as a win. Initialized from LevelConfig.RivalMineProtection.
+    public int RivalMineProtectionCount { get; init; }
+
     // Shop tracking
     public int ShopVisitCount { get; init; }
     public int VisitingBunnyPendingReveals { get; init; }

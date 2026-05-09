@@ -417,6 +417,42 @@ public static class BoardSystem
     }
 
     /// <summary>
+    /// Places `count` lounging-noble overlays on random unrevealed, non-destroyed
+    /// player or neutral tiles that don't already have one. Called after each rival
+    /// turn when LevelConfig.RivalPlacesMines is set.
+    /// </summary>
+    public static Board PlaceRivalLoungingNobles(Board board, int count, Random rng)
+    {
+        if (count <= 0) return board;
+
+        var pool = board.Tiles
+            .Where(t => board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed
+                        && !t.IsDestroyed
+                        && !t.IsLoungingNoble
+                        && (t.Owner == TileOwner.Player || t.Owner == TileOwner.Neutral))
+            .Select(t => t.Position)
+            .ToList();
+
+        for (var i = pool.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
+        }
+
+        var picks = pool.Take(Math.Min(count, pool.Count)).ToList();
+        if (picks.Count == 0) return board;
+
+        var newTiles = board.Tiles.ToList();
+        foreach (var pos in picks)
+        {
+            var idx = board.TileIndex(pos);
+            newTiles[idx] = newTiles[idx].WithSpecial(SpecialTileType.LoungingNoble);
+        }
+        return board with { Tiles = newTiles };
+    }
+
+    /// <summary>
     /// For each soirée tile, spawns 1 courtier on a random adjacent eligible tile
     /// (per SelectCourtierTarget rules). No-op when a soirée has no eligible neighbor.
     /// Called at the start of each rival turn.

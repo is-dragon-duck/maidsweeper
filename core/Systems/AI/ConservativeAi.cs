@@ -76,8 +76,8 @@ public sealed class ConservativeAi : IRivalAi
     private static bool IsForbiddenNoble(GameState state, Position pos, bool rivalNeverNobles)
     {
         if (!rivalNeverNobles) return false;
-        // M40 will extend this to include lounging-noble overlays.
-        return state.Board.GetTile(pos).Owner == TileOwner.Noble;
+        var tile = state.Board.GetTile(pos);
+        return tile.Owner == TileOwner.Noble || tile.IsLoungingNoble;
     }
 
     private static Position? MaxPointsFallback(

@@ -99,17 +99,28 @@ public static class TurnSystem
 
     /// <summary>
     /// Checks the game status based on current board state.
-    /// Won: all player tiles revealed.
-    /// Lost: any noble tile revealed.
+    /// Player-revealed unprotected noble (regular or lounging) → Lost.
+    /// Rival-revealed unprotected noble → Won (floor completes in player's favor).
+    /// All player tiles revealed → Won.
     /// </summary>
     public static GameStatus CheckGameStatus(GameState state)
     {
         var board = state.Board;
 
-        // Check for noble reveal (loss) — destroyed and Excuses-protected nobles don't count
-        if (board.Tiles.Any(t => board.IsUsablePosition(t.Position) && t.IsRevealed && !t.IsDestroyed
-                                 && t.Owner == TileOwner.Noble && !t.ProtectedByExcuses))
-            return GameStatus.Lost;
+        // Look at every revealed tile that functions as a noble (regular or lounging).
+        foreach (var t in board.Tiles)
+        {
+            if (!board.IsUsablePosition(t.Position)) continue;
+            if (!t.IsRevealed || t.IsDestroyed) continue;
+            if (t.ProtectedByExcuses || t.ProtectedByRivalMineProtection) continue;
+
+            var functionsAsNoble = t.Owner == TileOwner.Noble || t.IsLoungingNoble;
+            if (!functionsAsNoble) continue;
+
+            return t.RevealedBy == PlayerType.Player
+                ? GameStatus.Lost
+                : GameStatus.Won;
+        }
 
         // Check if all rival tiles were destroyed (loss) — only if some existed
         var rivalTiles = board.Tiles.Where(t => board.IsUsablePosition(t.Position) && t.Owner == TileOwner.Rival).ToList();

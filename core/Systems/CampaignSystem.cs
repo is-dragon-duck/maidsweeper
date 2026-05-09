@@ -18,7 +18,8 @@ public static class CampaignSystem
             PersistentDeck = starterDeck,
             CurrentLevelId = config.LevelId,
             GamePhase = GamePhase.Playing,
-            ExcusesStacks = 1
+            ExcusesStacks = 1,
+            RivalMineProtectionCount = config.RivalMineProtection
         };
 
         // Initial rival intent points for turn 1 (Level 1 has no equipment yet)
@@ -423,6 +424,8 @@ public static class CampaignSystem
             ExcusesStacks = 1,
             ComplaintsStacks = 0,
             RecallPlayedThisFloor = false,
+            // Reset per-floor rival mine protection from this level's config
+            RivalMineProtectionCount = nextLevel.RivalMineProtection,
             // Persist multi-floor food stacks
             ReadStacks = state.ReadStacks,
             HydrateStacks = state.HydrateStacks,

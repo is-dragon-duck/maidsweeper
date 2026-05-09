@@ -12,6 +12,12 @@ public record Tile
     public bool IsDestroyed { get; init; }
     public bool ProtectedByExcuses { get; init; }
     /// <summary>
+    /// True when this noble (regular or lounging) was revealed by the rival and
+    /// absorbed by `RivalMineProtectionCount`. Treated like ProtectedByExcuses
+    /// for win/loss checks (the noble doesn't end the floor).
+    /// </summary>
+    public bool ProtectedByRivalMineProtection { get; init; }
+    /// <summary>
     /// Predetermined destination for the courtier on this tile (if IsCourtier).
     /// Visible to the player so they can see where the courtier will move when interacted with.
     /// Null when there's no courtier here (or no valid adjacent target exists).

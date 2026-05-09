@@ -493,15 +493,21 @@ public static class CardEffectSystem
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
         }
 
-        // Then clear ExtraDirty in the area
+        // Then clear ExtraDirty and LoungingNoble in the area
         var newTiles = state.Board.Tiles.ToList();
         var changed = false;
         foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 2))
         {
-            if (tile.IsDirty)
+            var idx = state.Board.TileIndex(tile.Position);
+            var t = newTiles[idx];
+            var cleaned = t;
+            if (t.IsDirty)
+                cleaned = cleaned.WithoutSpecial(SpecialTileType.ExtraDirty);
+            if (t.IsLoungingNoble)
+                cleaned = cleaned.WithoutSpecial(SpecialTileType.LoungingNoble);
+            if (!ReferenceEquals(cleaned, t) && cleaned != t)
             {
-                var idx = state.Board.TileIndex(tile.Position);
-                newTiles[idx] = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
+                newTiles[idx] = cleaned;
                 changed = true;
             }
         }

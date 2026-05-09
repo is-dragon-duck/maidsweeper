@@ -227,8 +227,10 @@ public static class GameRunner
     }
 
     /// <summary>
-    /// Consumes Excuses stacks for any newly revealed noble tiles.
-    /// Marks protected nobles so CheckGameStatus won't treat them as losses.
+    /// Consumes Excuses stacks for any newly **player-revealed** noble tiles
+    /// (regular or lounging). Rival-revealed nobles are handled by the rival
+    /// mine protection mechanic (see <see cref="ConsumeRivalMineProtectionIfNeeded"/>),
+    /// not Excuses.
     /// When Excuses drops to 0: adds 2 Complaints stacks, 1 Mollify to discard, 1 Mollify to top of draw.
     /// </summary>
     private static GameState ConsumeExcusesIfNeeded(GameState state)
@@ -244,14 +246,19 @@ public static class GameRunner
         for (var i = 0; i < newTiles.Count; i++)
         {
             var tile = newTiles[i];
-            if (board.IsUsablePosition(tile.Position) && tile.IsRevealed && !tile.IsDestroyed
-                && tile.Owner == TileOwner.Noble && !tile.ProtectedByExcuses
-                && excusesLeft > 0)
-            {
-                newTiles[i] = tile with { ProtectedByExcuses = true };
-                excusesLeft--;
-                changed = true;
-            }
+            if (!board.IsUsablePosition(tile.Position)) continue;
+            if (!tile.IsRevealed || tile.IsDestroyed) continue;
+            if (tile.RevealedBy != PlayerType.Player) continue;
+            if (tile.ProtectedByExcuses) continue;
+
+            var functionsAsNoble = tile.Owner == TileOwner.Noble || tile.IsLoungingNoble;
+            if (!functionsAsNoble) continue;
+
+            if (excusesLeft <= 0) break;
+
+            newTiles[i] = tile with { ProtectedByExcuses = true };
+            excusesLeft--;
+            changed = true;
         }
 
         if (!changed) return state;
@@ -286,6 +293,50 @@ public static class GameRunner
     }
 
     /// <summary>
+    /// Consumes RivalMineProtectionCount for any newly **rival-revealed** noble tiles
+    /// (regular or lounging). Each protected reveal awards 5 copper (× Tiara) and marks
+    /// the tile so CheckGameStatus doesn't treat it as a floor-win trigger.
+    /// </summary>
+    private static GameState ConsumeRivalMineProtectionIfNeeded(GameState state)
+    {
+        if (state.RivalMineProtectionCount <= 0) return state;
+
+        var board = state.Board;
+        var newTiles = board.Tiles.ToList();
+        var protectionLeft = state.RivalMineProtectionCount;
+        var copperGained = 0;
+        var changed = false;
+
+        for (var i = 0; i < newTiles.Count; i++)
+        {
+            var tile = newTiles[i];
+            if (!board.IsUsablePosition(tile.Position)) continue;
+            if (!tile.IsRevealed || tile.IsDestroyed) continue;
+            if (tile.RevealedBy != PlayerType.Rival) continue;
+            if (tile.ProtectedByRivalMineProtection) continue;
+
+            var functionsAsNoble = tile.Owner == TileOwner.Noble || tile.IsLoungingNoble;
+            if (!functionsAsNoble) continue;
+
+            if (protectionLeft <= 0) break;
+
+            newTiles[i] = tile with { ProtectedByRivalMineProtection = true };
+            protectionLeft--;
+            copperGained += 5 * EquipmentSystem.CopperMultiplier(state);
+            changed = true;
+        }
+
+        if (!changed) return state;
+
+        return state with
+        {
+            Board = board with { Tiles = newTiles },
+            RivalMineProtectionCount = protectionLeft,
+            Copper = state.Copper + copperGained
+        };
+    }
+
+    /// <summary>
     /// Handles the turn transition: end player turn → rival turn → start new player turn.
     /// </summary>
     private static GameState ProcessTurnTransition(GameState state, Random rng)
@@ -295,6 +346,19 @@ public static class GameRunner
 
         // Rival turn
         state = TurnSystem.ExecuteRivalTurn(state, rng);
+
+        // Absorb any rival-revealed nobles via mine protection (before win/loss check)
+        state = ConsumeRivalMineProtectionIfNeeded(state);
+
+        // Place rival lounging nobles (per RivalPlacesMines) on player/neutral tiles
+        var levelConfig = LevelConfigs.GetById(state.CurrentLevelId);
+        if (levelConfig != null && levelConfig.RivalPlacesMines > 0)
+        {
+            state = state with
+            {
+                Board = BoardSystem.PlaceRivalLoungingNobles(state.Board, levelConfig.RivalPlacesMines, rng)
+            };
+        }
 
         // Check if rival reveal ended the game
         var status = TurnSystem.CheckGameStatus(state);
