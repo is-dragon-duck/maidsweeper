@@ -265,6 +265,7 @@ public static class CardEffectSystem
         if (tile.IsCourtier)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, pos, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
             tile = state.Board.GetTile(pos);
         }
 
@@ -570,6 +571,7 @@ public static class CardEffectSystem
         if (safestTile.IsCourtier)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, safest.pos, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
             state = AnnotationSystem.AddOwnerSubset(state, safest.pos, new HashSet<TileOwner> { safestTile.Owner });
         }
         // If the safer tile is ExtraDirty, clean it and annotate with true owner instead of revealing
@@ -663,6 +665,7 @@ public static class CardEffectSystem
         foreach (var p in courtierPositions)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
         }
 
         foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 1))
@@ -705,6 +708,7 @@ public static class CardEffectSystem
         foreach (var p in courtierPositions)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
         }
 
         // Then clear ExtraDirty and LoungingNoble in the area
@@ -1073,6 +1077,7 @@ public static class CardEffectSystem
         foreach (var p in courtierPositions)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
         }
         // Re-fetch cross after cleaning
         tilesInCross = BoardSystem.GetTilesInCross(state.Board, center);

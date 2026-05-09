@@ -68,6 +68,76 @@ public static class EquipmentSystem
             state = CardEffectSystem.ExecuteTingle(state, rng, CardDefinitions.Tingle);
         }
 
+        if (HasEquipment(state, EquipmentEffectType.Espresso))
+        {
+            state = TriggerEspresso(state, rng);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Espresso: draw 1 extra card, then auto-play the cheapest non-targeting card
+    /// that the player can afford. No-op if no eligible card or insufficient spoons.
+    /// </summary>
+    private static GameState TriggerEspresso(GameState state, Random rng)
+    {
+        state = DeckSystem.DrawCards(state, 1, rng);
+
+        var pickable = state.Hand
+            .Where(c => IsAutoPlayable(c.EffectType))
+            .Where(c => DeckSystem.CanPlayCard(state, c))
+            .OrderBy(c => c.Cost)
+            .ToList();
+
+        if (pickable.Count == 0) return state;
+
+        try
+        {
+            state = CardEffectSystem.PlayCard(state, pickable[0], targets: null, rng);
+        }
+        catch
+        {
+            // Defensive: a card unexpectedly threw — leave state untouched
+        }
+        return state;
+    }
+
+    /// <summary>
+    /// Returns true for card effects that don't require tile targeting or
+    /// hand/exhaust card selection — eligible for Espresso auto-play.
+    /// </summary>
+    private static bool IsAutoPlayable(CardEffectType type) => type switch
+    {
+        CardEffectType.Recall => true,
+        CardEffectType.RecallVague => true,
+        CardEffectType.RecallSarcastic => true,
+        CardEffectType.Tingle => true,
+        CardEffectType.Twirl => true,
+        CardEffectType.Caffeinate => true,
+        CardEffectType.Breathe => true,
+        CardEffectType.LockIn => true,
+        CardEffectType.Rendezvous => true,
+        CardEffectType.Ramble => true,
+        CardEffectType.Glaze => true,
+        CardEffectType.Mollify => true,
+        CardEffectType.Read => true,
+        CardEffectType.Hydrate => true,
+        CardEffectType.Adopt => true,
+        CardEffectType.Pose => true,
+        _ => false
+    };
+
+    /// <summary>
+    /// Mop: when a courtier is cleaned, draw 1 card. Call after BoardSystem.CleanCourtier
+    /// (when the caller verified that a courtier was actually present).
+    /// </summary>
+    public static GameState OnCourtierCleaned(GameState state, Random rng)
+    {
+        if (HasEquipment(state, EquipmentEffectType.Mop))
+        {
+            state = DeckSystem.DrawCards(state, 1, rng);
+        }
         return state;
     }
 

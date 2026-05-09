@@ -74,6 +74,7 @@ public static class GameRunner
         if (tile.IsCourtier)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, pos, rng) };
+            state = EquipmentSystem.OnCourtierCleaned(state, rng);
             state = ProcessTurnTransition(state, rng);
             return new ActionResult { State = state, TurnEnded = true };
         }

@@ -167,5 +167,9 @@ public enum EquipmentEffectType
     Progesterone,  // Replace 3 random non-bonus-spoon cards with enhanced versions
     CrystalBall,   // Add 3 doubly-upgraded Tingles to persistent deck
     Boots,         // Replace 1 random card with a doubly-upgraded reward card
-    Tiara          // Double all copper rewards
+    Tiara,         // Double all copper rewards
+
+    // --- Stage 5 Set 3 (Stage 5 mechanics, M45) ---
+    Mop,           // Cleaning a courtier draws 1 card
+    Espresso       // Prereq Coffee. Draw + auto-play cheapest non-targeting card at turn start
 }

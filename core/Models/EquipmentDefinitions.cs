@@ -106,6 +106,25 @@ public static class EquipmentDefinitions
         EffectType = EquipmentEffectType.Tiara
     };
 
+    // --- Set 3: Stage 5 mechanics (M45) ---
+
+    public static Equipment Mop => new()
+    {
+        Id = "",
+        Name = "Mop",
+        Description = "When you clean a courtier, draw 1 card.",
+        EffectType = EquipmentEffectType.Mop
+    };
+
+    public static Equipment Espresso => new()
+    {
+        Id = "",
+        Name = "Espresso",
+        Description = "At the start of each turn, draw an extra card and auto-play your cheapest non-targeting card (if you can afford it).",
+        EffectType = EquipmentEffectType.Espresso,
+        Prereqs = [EquipmentEffectType.Coffee]
+    };
+
     /// <summary>
     /// Returns all equipment templates available as offerings.
     /// </summary>
@@ -114,7 +133,8 @@ public static class EquipmentDefinitions
         return
         [
             Coffee, FrillyDress, DustBunny, Handbag, Eyeshadow, Glasses,
-            Bleach, Estrogen, Progesterone, CrystalBall, Boots, Tiara
+            Bleach, Estrogen, Progesterone, CrystalBall, Boots, Tiara,
+            Mop, Espresso
         ];
     }
 }

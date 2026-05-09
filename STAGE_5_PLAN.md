@@ -339,7 +339,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Espresso: skips if no auto-playable card
 - Espresso: prereq Coffee enforced in offerings (M47 dependency)
 
-**Status**: Not Started
+**Status**: Complete (509 tests; prereq filter wired in M47)
 
 ---
 
