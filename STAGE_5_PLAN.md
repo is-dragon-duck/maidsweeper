@@ -366,7 +366,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 **Tests** (~12):
 - Each item: one focused happy-path test plus one edge case (e.g., Choker with <5 tiles remaining; Hyperfocus with no cost-0 cards)
 
-**Status**: Not Started
+**Status**: Complete (522 tests)
 
 ---
 

@@ -125,6 +125,72 @@ public static class EquipmentDefinitions
         Prereqs = [EquipmentEffectType.Coffee]
     };
 
+    // --- Stage 4 Stretch (deferred, M46) ---
+
+    public static Equipment Hyperfocus => new()
+    {
+        Id = "",
+        Name = "Hyperfocus",
+        Description = "At floor start, pull one net-cost-0 card from your deck into your hand.",
+        EffectType = EquipmentEffectType.Hyperfocus
+    };
+
+    public static Equipment Choker => new()
+    {
+        Id = "",
+        Name = "Choker",
+        Description = "Rival's turn ends early when 5 or fewer unrevealed tiles remain on the board.",
+        EffectType = EquipmentEffectType.Choker
+    };
+
+    public static Equipment Mirror => new()
+    {
+        Id = "",
+        Name = "Mirror",
+        Description = "At floor start, reveal 1 random rival tile and add player adjacency info to its neighbors.",
+        EffectType = EquipmentEffectType.Mirror
+    };
+
+    public static Equipment BusyCanary => new()
+    {
+        Id = "",
+        Name = "Busy Canary",
+        Description = "At floor start, scan up to 2 cross areas (random) for nobles.",
+        EffectType = EquipmentEffectType.BusyCanary
+    };
+
+    public static Equipment DoubleBroom => new()
+    {
+        Id = "",
+        Name = "Double Broom",
+        Description = "When you reveal a tile, Brush 2 random adjacent unrevealed tiles.",
+        EffectType = EquipmentEffectType.DoubleBroom
+    };
+
+    public static Equipment BroomCloset => new()
+    {
+        Id = "",
+        Name = "Broom Closet",
+        Description = "On acquisition: remove all Spritz cards from your deck and add 3 Sweep cards.",
+        EffectType = EquipmentEffectType.BroomCloset
+    };
+
+    public static Equipment Cocktail => new()
+    {
+        Id = "",
+        Name = "Cocktail",
+        Description = "On acquisition: remove all Scurry cards from your deck and add 2 random bonus-spoon cards.",
+        EffectType = EquipmentEffectType.Cocktail
+    };
+
+    public static Equipment Novel => new()
+    {
+        Id = "",
+        Name = "Novel",
+        Description = "On acquisition: replace all Recall cards in your deck with doubly-upgraded Sarcastic Recalls.",
+        EffectType = EquipmentEffectType.Novel
+    };
+
     /// <summary>
     /// Returns all equipment templates available as offerings.
     /// </summary>
@@ -134,7 +200,9 @@ public static class EquipmentDefinitions
         [
             Coffee, FrillyDress, DustBunny, Handbag, Eyeshadow, Glasses,
             Bleach, Estrogen, Progesterone, CrystalBall, Boots, Tiara,
-            Mop, Espresso
+            Mop, Espresso,
+            Hyperfocus, Choker, Mirror, BusyCanary, DoubleBroom,
+            BroomCloset, Cocktail, Novel
         ];
     }
 }

@@ -46,6 +46,108 @@ public static class EquipmentSystem
             state = RevealRandomPlayerTile(state, rng);
         }
 
+        if (HasEquipment(state, EquipmentEffectType.Hyperfocus))
+        {
+            state = ApplyHyperfocus(state, rng);
+        }
+
+        if (HasEquipment(state, EquipmentEffectType.Mirror))
+        {
+            state = ApplyMirror(state, rng);
+        }
+
+        if (HasEquipment(state, EquipmentEffectType.BusyCanary))
+        {
+            state = ApplyBusyCanary(state, rng);
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Hyperfocus: pull one random net-cost-0 card (Cost - BonusSpoon refund == 0) from
+    /// the draw pile into the hand. No-op if no eligible card in draw pile.
+    /// </summary>
+    private static GameState ApplyHyperfocus(GameState state, Random rng)
+    {
+        var candidateIndices = Enumerable.Range(0, state.DrawPile.Count)
+            .Where(i =>
+            {
+                var c = state.DrawPile[i];
+                return c.Cost - (c.BonusSpoon ? 1 : 0) == 0;
+            })
+            .ToList();
+
+        if (candidateIndices.Count == 0) return state;
+
+        var idx = candidateIndices[rng.Next(candidateIndices.Count)];
+        var picked = state.DrawPile[idx];
+        var newDraw = state.DrawPile.ToList();
+        newDraw.RemoveAt(idx);
+        var newHand = state.Hand.ToList();
+        newHand.Add(picked);
+        return state with { DrawPile = newDraw, Hand = newHand };
+    }
+
+    /// <summary>
+    /// Mirror: reveal one random unrevealed rival tile (by Rival, so it doesn't
+    /// trigger the player's turn-end), then add player adjacency annotations to
+    /// each of its unrevealed neighbors.
+    /// </summary>
+    private static GameState ApplyMirror(GameState state, Random rng)
+    {
+        var rivals = state.Board.Tiles
+            .Where(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed
+                        && t.Owner == TileOwner.Rival)
+            .ToList();
+        if (rivals.Count == 0) return state;
+
+        var pick = rivals[rng.Next(rivals.Count)];
+        state = state with { Board = BoardSystem.RevealTile(state.Board, pick.Position, PlayerType.Rival) };
+
+        foreach (var neighbor in BoardSystem.GetNeighbors(state.Board, pick.Position))
+        {
+            var nTile = state.Board.GetTile(neighbor);
+            if (nTile.IsRevealed) continue;
+            var playerCount = BoardSystem.CalculateAdjacency(state.Board, neighbor, PlayerType.Player);
+            state = AnnotationSystem.AddAdjacencyInfo(state, neighbor,
+                new AdjacencyInfo { PlayerCount = playerCount });
+        }
+        return state;
+    }
+
+    /// <summary>
+    /// Busy Canary: run up to 2 cross-area Peek-style scans at random unrevealed positions.
+    /// Each scan annotates nobles in the cross as `{Noble}` and other tiles as
+    /// `{Player, Rival, Neutral}`.
+    /// </summary>
+    private static GameState ApplyBusyCanary(GameState state, Random rng)
+    {
+        var candidates = state.Board.Tiles
+            .Where(t => state.Board.IsUsablePosition(t.Position)
+                        && !t.IsRevealed && !t.IsDestroyed)
+            .Select(t => t.Position)
+            .ToList();
+        for (var i = candidates.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        foreach (var center in candidates.Take(2))
+        {
+            foreach (var tile in BoardSystem.GetTilesInCross(state.Board, center))
+            {
+                if (tile.IsRevealed) continue;
+                if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
+
+                var subset = tile.Owner == TileOwner.Noble
+                    ? new HashSet<TileOwner> { TileOwner.Noble }
+                    : new HashSet<TileOwner> { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral };
+                state = AnnotationSystem.AddOwnerSubset(state, tile.Position, subset);
+            }
+        }
         return state;
     }
 
@@ -142,6 +244,58 @@ public static class EquipmentSystem
     }
 
     /// <summary>
+    /// Double Broom: when the player reveals a tile, Brush 2 random adjacent
+    /// unrevealed tiles (each annotated with a random non-owner exclusion).
+    /// Called by GameRunner.ProcessReveal after a successful tile reveal.
+    /// </summary>
+    public static GameState OnTileRevealedByPlayer(GameState state, Position revealedPos, Random rng)
+    {
+        if (!HasEquipment(state, EquipmentEffectType.DoubleBroom)) return state;
+
+        var neighbors = BoardSystem.GetNeighbors(state.Board, revealedPos)
+            .Where(n =>
+            {
+                var t = state.Board.GetTile(n);
+                if (t.IsRevealed || t.IsDestroyed) return false;
+                if (t.IsInner && !BoardSystem.CanReachInnerTile(state.Board, n)) return false;
+                return true;
+            })
+            .ToList();
+
+        for (var i = neighbors.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (neighbors[i], neighbors[j]) = (neighbors[j], neighbors[i]);
+        }
+
+        var allOwners = new[] { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
+        foreach (var pos in neighbors.Take(2))
+        {
+            var tile = state.Board.GetTile(pos);
+            var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
+            if (nonOwners.Count == 0) continue;
+            var excluded = nonOwners[rng.Next(nonOwners.Count)];
+            var subset = new HashSet<TileOwner>(allOwners.Where(o => o != excluded));
+            state = AnnotationSystem.AddOwnerSubset(state, pos, subset);
+        }
+        return state;
+    }
+
+    /// <summary>
+    /// Choker: rival's turn ends early when 5 or fewer unrevealed (non-destroyed)
+    /// tiles remain on the board.
+    /// </summary>
+    public static bool ShouldChokerSuppressRivalTurn(GameState state)
+    {
+        if (!HasEquipment(state, EquipmentEffectType.Choker)) return false;
+        var unrevealed = state.Board.Tiles.Count(t =>
+            state.Board.IsUsablePosition(t.Position)
+            && !t.IsRevealed
+            && !t.IsDestroyed);
+        return unrevealed <= 5;
+    }
+
+    /// <summary>
     /// Frilly Dress: suppress turn end for the first 4 neutral reveals on turn 1.
     /// Returns the updated state and whether the turn end was suppressed.
     /// </summary>
@@ -191,6 +345,9 @@ public static class EquipmentSystem
             EquipmentEffectType.Progesterone => ApplyProgesterone(state, rng),
             EquipmentEffectType.CrystalBall => ApplyCrystalBall(state, rng),
             EquipmentEffectType.Boots => ApplyBoots(state, rng),
+            EquipmentEffectType.BroomCloset => ApplyBroomCloset(state),
+            EquipmentEffectType.Cocktail => ApplyCocktail(state, rng),
+            EquipmentEffectType.Novel => ApplyNovel(state),
             _ => state
         };
     }
@@ -292,6 +449,72 @@ public static class EquipmentSystem
         };
         deck.Add(newCard);
 
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Broom Closet: remove all Spritz cards from the persistent deck, add 3 Sweep cards.
+    /// </summary>
+    private static GameState ApplyBroomCloset(GameState state)
+    {
+        var deck = state.PersistentDeck
+            .Where(c => c.EffectType != CardEffectType.Spritz)
+            .ToList();
+        for (var i = 0; i < 3; i++)
+        {
+            var sweep = CardDefinitions.Sweep with { Id = $"broomcloset_{Guid.NewGuid():N}" };
+            // Bleach interaction: if owned, the new Sweep is auto-enhanced
+            sweep = ApplyBleachToNewCard(state, sweep);
+            deck.Add(sweep);
+        }
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Cocktail: remove all Scurry cards from the persistent deck, add 2 random
+    /// bonus-spoon cards drawn from the reward pool.
+    /// </summary>
+    private static GameState ApplyCocktail(GameState state, Random rng)
+    {
+        var deck = state.PersistentDeck
+            .Where(c => c.EffectType != CardEffectType.Scurry)
+            .ToList();
+        var pool = CardDefinitions.CreateRewardPool();
+        for (var i = 0; i < 2; i++)
+        {
+            var template = pool[rng.Next(pool.Count)];
+            var card = template with
+            {
+                Id = $"cocktail_{Guid.NewGuid():N}",
+                BonusSpoon = true
+            };
+            deck.Add(card);
+        }
+        return state with { PersistentDeck = deck };
+    }
+
+    /// <summary>
+    /// Novel: replace every Recall card (Imperious / Vague / Sarcastic) in the
+    /// persistent deck with a doubly-upgraded Sarcastic Recall.
+    /// </summary>
+    private static GameState ApplyNovel(GameState state)
+    {
+        var deck = state.PersistentDeck.ToList();
+        for (var i = 0; i < deck.Count; i++)
+        {
+            var c = deck[i];
+            var isRecall = c.EffectType == CardEffectType.Recall
+                        || c.EffectType == CardEffectType.RecallVague
+                        || c.EffectType == CardEffectType.RecallSarcastic;
+            if (!isRecall) continue;
+
+            deck[i] = CardDefinitions.RecallSarcastic with
+            {
+                Id = $"novel_{Guid.NewGuid():N}",
+                Enhanced = true,
+                BonusSpoon = true
+            };
+        }
         return state with { PersistentDeck = deck };
     }
 

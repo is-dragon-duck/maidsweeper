@@ -53,6 +53,12 @@ public static class TurnSystem
         // Soirées spawn courtiers at the start of every rival turn
         state = state with { Board = BoardSystem.SpawnCourtiersFromSoirees(state.Board, rng) };
 
+        // Choker: skip the rival's reveals when ≤5 unrevealed tiles remain.
+        if (EquipmentSystem.ShouldChokerSuppressRivalTurn(state))
+        {
+            return state;
+        }
+
         var levelConfig = LevelConfigs.GetById(state.CurrentLevelId);
         var aiType = levelConfig?.RivalAi ?? AiType.Random;
         var ai = AiRegistry.Get(aiType);

@@ -171,5 +171,15 @@ public enum EquipmentEffectType
 
     // --- Stage 5 Set 3 (Stage 5 mechanics, M45) ---
     Mop,           // Cleaning a courtier draws 1 card
-    Espresso       // Prereq Coffee. Draw + auto-play cheapest non-targeting card at turn start
+    Espresso,      // Prereq Coffee. Draw + auto-play cheapest non-targeting card at turn start
+
+    // --- Stage 4 Stretch (deferred, M46) ---
+    Hyperfocus,    // Floor start: pull a net-cost-0 card from draw pile to hand
+    Choker,        // Rival turn ends early when ≤5 unrevealed tiles remain on board
+    Mirror,        // Floor start: reveal 1 random rival tile + player-adjacency annotations on neighbors
+    BusyCanary,    // Floor start: 2 cross-area Peek-style scans for nobles at random positions
+    DoubleBroom,   // On player tile reveal: Brush 2 random adjacent unrevealed tiles
+    BroomCloset,   // On acquisition: remove all Spritz from deck, add 3 Sweep cards
+    Cocktail,      // On acquisition: remove all Scurry from deck, add 2 random bonus-spoon cards
+    Novel          // On acquisition: replace all Recall cards with doubly-upgraded Sarcastic Recall
 }

@@ -100,6 +100,12 @@ public static class GameRunner
             state = TrackPlayerTileReveal(state);
         }
 
+        // Double Broom: when the player reveals a tile, brush 2 random adjacent neighbors
+        if (revealedTile.IsRevealed)
+        {
+            state = EquipmentSystem.OnTileRevealedByPlayer(state, pos, rng);
+        }
+
         // Consume Excuses if a noble was revealed
         state = ConsumeExcusesIfNeeded(state);
 
