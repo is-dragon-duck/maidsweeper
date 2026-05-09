@@ -247,7 +247,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Inner tile reveal counts toward win as normal once accessible
 - Manhattan-2 + sanctum: combined rule respects portal traversal (verify against alpha)
 
-**Status**: Not Started
+**Status**: Complete (459 tests; manhattan-2 portal-bonus rule deferred)
 
 ---
 

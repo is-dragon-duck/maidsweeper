@@ -250,6 +250,8 @@ public static class CardEffectSystem
 
         if (tile.IsRevealed)
             throw new ArgumentException("Cannot Spritz a revealed tile");
+        if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, pos))
+            throw new ArgumentException("Cannot Spritz an unreachable inner tile");
 
         // Spritz cleans courtiers (moves them) before annotating
         if (tile.IsCourtier)
@@ -403,7 +405,9 @@ public static class CardEffectSystem
     public static GameState ExecuteTingle(GameState state, Random rng, Card card)
     {
         var candidates = state.Board.Tiles
-            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Noble))
+            .Where(t => state.Board.IsUsablePosition(t.Position) && !t.IsRevealed
+                        && (t.Owner == TileOwner.Rival || t.Owner == TileOwner.Noble)
+                        && (!t.IsInner || BoardSystem.CanReachInnerTile(state.Board, t.Position)))
             .ToList();
 
         if (candidates.Count == 0)
@@ -456,6 +460,7 @@ public static class CardEffectSystem
         foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 1))
         {
             if (tile.IsRevealed) continue;
+            if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
 
             // Pick a random owner that ISN'T the tile's actual owner
             var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
@@ -485,7 +490,8 @@ public static class CardEffectSystem
 
         // Clean (move) courtiers first; CleanCourtier mutates the board.
         var courtierPositions = tilesInArea
-            .Where(t => t.IsCourtier)
+            .Where(t => t.IsCourtier
+                        && (!t.IsInner || BoardSystem.CanReachInnerTile(state.Board, t.Position)))
             .Select(t => t.Position)
             .ToList();
         foreach (var p in courtierPositions)
@@ -498,6 +504,7 @@ public static class CardEffectSystem
         var changed = false;
         foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 2))
         {
+            if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
             var idx = state.Board.TileIndex(tile.Position);
             var t = newTiles[idx];
             var cleaned = t;
@@ -614,6 +621,7 @@ public static class CardEffectSystem
         foreach (var tile in tilesInArea)
         {
             if (tile.IsRevealed) continue;
+            if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
 
             var subset = tile.Owner == TileOwner.Neutral
                 ? new HashSet<TileOwner> { TileOwner.Neutral }
@@ -645,6 +653,8 @@ public static class CardEffectSystem
 
         if (tile.IsRevealed)
             throw new ArgumentException("Cannot Eavesdrop a revealed tile");
+        if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, pos))
+            throw new ArgumentException("Cannot Eavesdrop an unreachable inner tile");
 
         if (card.Enhanced)
         {
@@ -690,6 +700,8 @@ public static class CardEffectSystem
         foreach (var tile in tilesInArea)
         {
             if (tile.IsRevealed) continue;
+            // Skip unreachable inner tiles (no adjacent revealed sanctum)
+            if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
 
             if (tile.Owner == TileOwner.Noble)
             {
@@ -814,7 +826,13 @@ public static class CardEffectSystem
 
         var newTiles = state.Board.Tiles.ToList();
         newTiles[state.Board.TileIndex(pos)] = unrevealedTile;
-        state = state with { Board = state.Board with { Tiles = newTiles } };
+        var newBoard = state.Board with { Tiles = newTiles };
+
+        // Un-revealing a sanctum closes its portal — recompute affected revealed tiles.
+        if (tile.IsSanctum)
+            newBoard = BoardSystem.RecomputeAdjacencyCounts(newBoard);
+
+        state = state with { Board = newBoard };
 
         if (card.Enhanced)
         {

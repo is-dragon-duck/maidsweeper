@@ -161,26 +161,115 @@ public static class BoardSystem
     }
 
     /// <summary>
-    /// Returns valid neighbor positions using king adjacency (8-directional).
-    /// Filters to usable positions within board bounds (excludes unused positions).
+    /// Returns valid neighbor positions using the board's adjacency rule (king or
+    /// manhattan-2), filtered to usable + non-destroyed.
+    ///
+    /// Portal rules (M41):
+    /// - Inner tiles only see sanctums directly; an outer tile only sees an inner
+    ///   tile if the outer tile is itself the sanctum that the inner is connected to.
+    /// - A REVEALED sanctum acts as a portal — it bridges its neighbors on both sides
+    ///   (so a non-sanctum tile adjacent to a revealed sanctum sees through to the
+    ///   sanctum's other neighbors, including inner tiles in its cluster).
+    /// - An UNREVEALED sanctum blocks: tiles only see the sanctum itself, not what's behind.
     /// </summary>
     public static List<Position> GetNeighbors(Board board, Position pos)
+    {
+        if (!board.IsValidPosition(pos)) return new List<Position>();
+        var posTile = board.GetTile(pos);
+        var result = new HashSet<Position>();
+
+        // 1. Direct offset neighbors with inner-tile filtering
+        foreach (var n in DirectOffsetNeighbors(board, pos))
+        {
+            if (!board.IsUsablePosition(n)) continue;
+            var nTile = board.GetTile(n);
+            if (nTile.IsDestroyed) continue;
+
+            // Inner tile only directly connects to sanctums
+            if (posTile.IsInner && !nTile.IsSanctum) continue;
+            // Non-sanctum outer tile doesn't see inner tile directly
+            if (nTile.IsInner && !posTile.IsSanctum) continue;
+
+            result.Add(n);
+        }
+
+        // 2. Portal bridging: revealed sanctums adjacent to us extend our neighbor set
+        foreach (var n in DirectOffsetNeighbors(board, pos))
+        {
+            if (!board.IsUsablePosition(n)) continue;
+            var nTile = board.GetTile(n);
+            if (!nTile.IsSanctum || !nTile.IsRevealed) continue;
+
+            foreach (var sn in DirectOffsetNeighbors(board, n))
+            {
+                if (sn == pos) continue;
+                if (!board.IsUsablePosition(sn)) continue;
+                var snTile = board.GetTile(sn);
+                if (snTile.IsDestroyed) continue;
+                // Bridging via a sanctum: that sanctum sees ALL spatially-near tiles
+                // (including its own inner tiles), so we see them too.
+                result.Add(sn);
+            }
+        }
+
+        return result.ToList();
+    }
+
+    /// <summary>
+    /// Returns the raw offset neighbors (no inner-tile or portal filtering, only bounds).
+    /// </summary>
+    private static IEnumerable<Position> DirectOffsetNeighbors(Board board, Position pos)
     {
         var offsets = board.AdjacencyRule == AdjacencyRule.Manhattan2
             ? Position.Manhattan2Offsets
             : Position.KingOffsets;
-        var neighbors = new List<Position>(offsets.Length);
-
         foreach (var (dRow, dCol) in offsets)
         {
-            var neighbor = new Position(pos.Row + dRow, pos.Col + dCol);
-            if (board.IsUsablePosition(neighbor) && !board.GetTile(neighbor).IsDestroyed)
+            var n = new Position(pos.Row + dRow, pos.Col + dCol);
+            if (board.IsValidPosition(n)) yield return n;
+        }
+    }
+
+    /// <summary>
+    /// Inner tiles can only be revealed (or single-target-card-targeted) when at
+    /// least one spatially-adjacent sanctum is currently revealed.
+    /// Returns true for non-inner tiles unconditionally.
+    /// </summary>
+    public static bool CanReachInnerTile(Board board, Position pos)
+    {
+        if (!board.IsValidPosition(pos)) return false;
+        var tile = board.GetTile(pos);
+        if (!tile.IsInner) return true;
+
+        foreach (var n in DirectOffsetNeighbors(board, pos))
+        {
+            if (!board.IsUsablePosition(n)) continue;
+            var nTile = board.GetTile(n);
+            if (nTile.IsSanctum && nTile.IsRevealed) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Recomputes AdjacencyCount for every revealed tile on the board. Called after
+    /// a sanctum's reveal state changes (since portal bridging changes neighbor sets).
+    /// </summary>
+    public static Board RecomputeAdjacencyCounts(Board board)
+    {
+        var newTiles = board.Tiles.ToList();
+        var changed = false;
+        for (var i = 0; i < newTiles.Count; i++)
+        {
+            var t = newTiles[i];
+            if (!t.IsRevealed || t.IsDestroyed || t.RevealedBy == null) continue;
+            var newCount = CalculateAdjacency(board, t.Position, t.RevealedBy.Value);
+            if (newCount != t.AdjacencyCount)
             {
-                neighbors.Add(neighbor);
+                newTiles[i] = t with { AdjacencyCount = newCount };
+                changed = true;
             }
         }
-
-        return neighbors;
+        return changed ? board with { Tiles = newTiles } : board;
     }
 
     /// <summary>
@@ -227,8 +316,13 @@ public static class BoardSystem
 
         var newTiles = board.Tiles.ToList();
         newTiles[board.TileIndex(pos)] = revealedTile;
+        var newBoard = board with { Tiles = newTiles };
 
-        return board with { Tiles = newTiles };
+        // Sanctum reveals open up portal bridging — recompute affected revealed tiles.
+        if (tile.IsSanctum)
+            newBoard = RecomputeAdjacencyCounts(newBoard);
+
+        return newBoard;
     }
 
     /// <summary>

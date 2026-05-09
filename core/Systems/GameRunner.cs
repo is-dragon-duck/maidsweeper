@@ -65,6 +65,10 @@ public static class GameRunner
         if (tile.IsRevealed)
             throw new InvalidOperationException("Tile is already revealed");
 
+        // Inner tiles are clickable only when at least one adjacent sanctum is revealed.
+        if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, pos))
+            throw new InvalidOperationException("Inner tile is unreachable (no adjacent sanctum revealed)");
+
         // Courtier: clicking moves the courtier and "cleans" (no reveal). Click counts as
         // attempting to reveal, so the player's turn still ends.
         if (tile.IsCourtier)
