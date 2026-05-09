@@ -147,7 +147,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - "empty" placement only uses unused-location slots
 - Tile count totals (player+rival+neutral+noble) ignore "empty"-placed special tiles
 
-**Status**: Not Started
+**Status**: Complete (415 tests; rendering hook deferred to M39+ per-tile-type milestones)
 
 ---
 
@@ -171,7 +171,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Multiple soirées spawn independently
 - Courtier doesn't move on annotation-only effects (Eavesdrop, Tingle)
 
-**Status**: Not Started
+**Status**: Complete (427 tests; rendering deferred to a Stage-5-UI milestone)
 
 ---
 

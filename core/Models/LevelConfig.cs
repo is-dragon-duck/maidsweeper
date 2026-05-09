@@ -4,7 +4,18 @@ public record SpecialTileConfig
 {
     public required SpecialTileType Type { get; init; }
     public required int Count { get; init; }
-    public required IReadOnlyList<TileOwner> EligibleOwners { get; init; }
+    /// <summary>
+    /// How to pick positions for this special. Defaults to Owners (existing behavior).
+    /// </summary>
+    public PlacementStrategy Strategy { get; init; } = PlacementStrategy.Owners;
+    /// <summary>
+    /// Used when Strategy = Owners. Restricts placement to tiles whose Owner is in this list.
+    /// </summary>
+    public IReadOnlyList<TileOwner> EligibleOwners { get; init; } = [];
+    /// <summary>
+    /// Used when Strategy = Explicit. The exact positions to mark with this flag.
+    /// </summary>
+    public IReadOnlyList<Position> ExplicitPositions { get; init; } = [];
 }
 
 public record UponFinishConfig

@@ -65,6 +65,15 @@ public static class GameRunner
         if (tile.IsRevealed)
             throw new InvalidOperationException("Tile is already revealed");
 
+        // Courtier: clicking moves the courtier and "cleans" (no reveal). Click counts as
+        // attempting to reveal, so the player's turn still ends.
+        if (tile.IsCourtier)
+        {
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, pos, rng) };
+            state = ProcessTurnTransition(state, rng);
+            return new ActionResult { State = state, TurnEnded = true };
+        }
+
         var wasDirty = tile.IsDirty;
 
         // Reveal the tile (or clean if ExtraDirty)

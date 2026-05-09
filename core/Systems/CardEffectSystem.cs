@@ -39,13 +39,13 @@ public static class CardEffectSystem
         {
             state = card.EffectType switch
             {
-                CardEffectType.Spritz => ExecuteSpritz(state, targets, card),
+                CardEffectType.Spritz => ExecuteSpritz(state, targets, card, rng),
                 CardEffectType.Recall => ExecuteInstructions(state, rng, card),
                 CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
                 CardEffectType.Tingle => ExecuteTingle(state, rng, card),
                 CardEffectType.Twirl => ExecuteTwirl(state, card),
                 CardEffectType.Brush => ExecuteBrush(state, targets, rng),
-                CardEffectType.Sweep => ExecuteSweep(state, targets),
+                CardEffectType.Sweep => ExecuteSweep(state, targets, rng),
                 CardEffectType.Caffeinate => ExecuteCaffeinate(state),
                 CardEffectType.Breathe => ExecuteBreathe(state, rng),
                 CardEffectType.LockIn => ExecuteLockIn(state, rng),
@@ -56,7 +56,7 @@ public static class CardEffectSystem
                 CardEffectType.Deliver => ExecuteDeliver(state, targets, card),
                 CardEffectType.Brat => ExecuteBrat(state, targets, card),
                 CardEffectType.Mollify => ExecuteMollify(state),
-                CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
+                CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card, rng),
                 CardEffectType.Ramble => ExecuteRamble(state, card, rng),
                 CardEffectType.Read => ExecuteRead(state, card),
                 CardEffectType.Hydrate => ExecuteHydrate(state, card),
@@ -207,13 +207,13 @@ public static class CardEffectSystem
 
         return card.EffectType switch
         {
-            CardEffectType.Spritz => ExecuteSpritz(state, targets, card),
+            CardEffectType.Spritz => ExecuteSpritz(state, targets, card, rng),
             CardEffectType.Recall => ExecuteInstructions(state, rng, card),
             CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
             CardEffectType.Tingle => ExecuteTingle(state, rng, card),
             CardEffectType.Twirl => ExecuteTwirl(state, card),
             CardEffectType.Brush => ExecuteBrush(state, targets, rng),
-            CardEffectType.Sweep => ExecuteSweep(state, targets),
+            CardEffectType.Sweep => ExecuteSweep(state, targets, rng),
             CardEffectType.Caffeinate => ExecuteCaffeinate(state),
             CardEffectType.Breathe => ExecuteBreathe(state, rng),
             CardEffectType.LockIn => ExecuteLockIn(state, rng),
@@ -224,7 +224,7 @@ public static class CardEffectSystem
             CardEffectType.Deliver => ExecuteDeliver(state, targets, card),
             CardEffectType.Brat => ExecuteBrat(state, targets, card),
             CardEffectType.Mollify => ExecuteMollify(state),
-            CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card),
+            CardEffectType.AcceptHelp => ExecuteAcceptHelp(state, targets, card, rng),
             CardEffectType.Ramble => ExecuteRamble(state, card, rng),
             CardEffectType.Read => ExecuteRead(state, card),
             CardEffectType.Hydrate => ExecuteHydrate(state, card),
@@ -240,7 +240,7 @@ public static class CardEffectSystem
     /// If Player or Neutral → safe: annotate {Player, Neutral}
     /// If Rival or Mine → dangerous: annotate {Rival, Mine}
     /// </summary>
-    public static GameState ExecuteSpritz(GameState state, Position[]? targets, Card card)
+    public static GameState ExecuteSpritz(GameState state, Position[]? targets, Card card, Random rng)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Spritz requires exactly 1 target tile");
@@ -251,10 +251,17 @@ public static class CardEffectSystem
         if (tile.IsRevealed)
             throw new ArgumentException("Cannot Spritz a revealed tile");
 
+        // Spritz cleans courtiers (moves them) before annotating
+        if (tile.IsCourtier)
+        {
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, pos, rng) };
+            tile = state.Board.GetTile(pos);
+        }
+
         // Spritz also cleans ExtraDirty
         if (tile.IsDirty)
         {
-            var cleanedTile = tile with { SpecialTile = null };
+            var cleanedTile = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
             var newTiles = state.Board.Tiles.ToList();
             newTiles[state.Board.TileIndex(pos)] = cleanedTile;
             state = state with { Board = state.Board with { Tiles = newTiles } };
@@ -348,11 +355,17 @@ public static class CardEffectSystem
         var safest = sorted[0];
         var other = sorted[1];
 
-        // If the safer tile is ExtraDirty, clean it and annotate with true owner instead of revealing
+        // If the safer tile is a Courtier, clean (move) it and annotate true owner instead of revealing.
         var safestTile = state.Board.GetTile(safest.pos);
-        if (safestTile.IsDirty)
+        if (safestTile.IsCourtier)
         {
-            var cleanedTile = safestTile with { SpecialTile = null };
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, safest.pos, rng) };
+            state = AnnotationSystem.AddOwnerSubset(state, safest.pos, new HashSet<TileOwner> { safestTile.Owner });
+        }
+        // If the safer tile is ExtraDirty, clean it and annotate with true owner instead of revealing
+        else if (safestTile.IsDirty)
+        {
+            var cleanedTile = safestTile.WithoutSpecial(SpecialTileType.ExtraDirty);
             var newTiles = state.Board.Tiles.ToList();
             newTiles[state.Board.TileIndex(safest.pos)] = cleanedTile;
             state = state with { Board = state.Board with { Tiles = newTiles } };
@@ -430,7 +443,17 @@ public static class CardEffectSystem
         var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
         var allOwners = new[] { TileOwner.Player, TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
 
-        foreach (var tile in tilesInArea)
+        // Clean (move) any courtiers in the area first
+        var courtierPositions = tilesInArea
+            .Where(t => t.IsCourtier)
+            .Select(t => t.Position)
+            .ToList();
+        foreach (var p in courtierPositions)
+        {
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+        }
+
+        foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 1))
         {
             if (tile.IsRevealed) continue;
 
@@ -449,31 +472,44 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Sweep: Target 1 tile (center of 5x5). Remove ExtraDirty from all tiles in area.
+    /// Sweep: Target 1 tile (center of 5x5). Remove ExtraDirty from all tiles in area;
+    /// also clean (move) any courtiers in the area.
     /// </summary>
-    public static GameState ExecuteSweep(GameState state, Position[]? targets)
+    public static GameState ExecuteSweep(GameState state, Position[]? targets, Random rng)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Sweep requires exactly 1 target tile");
 
         var center = targets[0];
         var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 2);
+
+        // Clean (move) courtiers first; CleanCourtier mutates the board.
+        var courtierPositions = tilesInArea
+            .Where(t => t.IsCourtier)
+            .Select(t => t.Position)
+            .ToList();
+        foreach (var p in courtierPositions)
+        {
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+        }
+
+        // Then clear ExtraDirty in the area
         var newTiles = state.Board.Tiles.ToList();
         var changed = false;
-
-        foreach (var tile in tilesInArea)
+        foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 2))
         {
             if (tile.IsDirty)
             {
                 var idx = state.Board.TileIndex(tile.Position);
-                newTiles[idx] = tile with { SpecialTile = null };
+                newTiles[idx] = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
                 changed = true;
             }
         }
 
-        if (!changed) return state;
+        if (changed)
+            state = state with { Board = state.Board with { Tiles = newTiles } };
 
-        return state with { Board = state.Board with { Tiles = newTiles } };
+        return state;
     }
 
     /// <summary>
@@ -730,10 +766,10 @@ public static class CardEffectSystem
 
         if (tile.Owner == TileOwner.Noble)
         {
-            // Convert noble to neutral, clear ExtraDirty
+            // Convert noble to neutral, clear all special flags
             var newTiles = state.Board.Tiles.ToList();
             var currentTile = state.Board.GetTile(pos); // Re-fetch after possible annotation
-            var converted = currentTile with { Owner = TileOwner.Neutral, SpecialTile = null };
+            var converted = currentTile with { Owner = TileOwner.Neutral, Specials = SpecialTileType.None };
             newTiles[state.Board.TileIndex(pos)] = converted;
             var board = state.Board with { Tiles = newTiles };
 
@@ -789,13 +825,25 @@ public static class CardEffectSystem
     /// After playing, sets AcceptHelpDiscount for the rest of the floor.
     /// Enhanced: annotate all tiles with exact owner instead of revealing.
     /// </summary>
-    public static GameState ExecuteAcceptHelp(GameState state, Position[]? targets, Card card)
+    public static GameState ExecuteAcceptHelp(GameState state, Position[]? targets, Card card, Random rng)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Accept Help requires exactly 1 target tile");
 
         var center = targets[0];
         var tilesInCross = BoardSystem.GetTilesInCross(state.Board, center);
+
+        // Clean (move) any courtiers in the cross before evaluating
+        var courtierPositions = tilesInCross
+            .Where(t => t.IsCourtier)
+            .Select(t => t.Position)
+            .ToList();
+        foreach (var p in courtierPositions)
+        {
+            state = state with { Board = BoardSystem.CleanCourtier(state.Board, p, rng) };
+        }
+        // Re-fetch cross after cleaning
+        tilesInCross = BoardSystem.GetTilesInCross(state.Board, center);
         var unrevealed = tilesInCross.Where(t => !t.IsRevealed).ToList();
 
         if (unrevealed.Count == 0)
@@ -844,7 +892,7 @@ public static class CardEffectSystem
                 if (tile.IsDirty)
                 {
                     // Clean ExtraDirty, annotate with exact owner instead of revealing
-                    var cleanedTile = tile with { SpecialTile = null };
+                    var cleanedTile = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
                     var newTiles = state.Board.Tiles.ToList();
                     newTiles[state.Board.TileIndex(tile.Position)] = cleanedTile;
                     state = state with { Board = state.Board with { Tiles = newTiles } };

@@ -50,6 +50,9 @@ public static class TurnSystem
         // Reset Distraction stacks at start of rival turn (legacy, kept until full migration)
         state = state with { DistractionStacks = 0 };
 
+        // Soirées spawn courtiers at the start of every rival turn
+        state = state with { Board = BoardSystem.SpawnCourtiersFromSoirees(state.Board, rng) };
+
         var levelConfig = LevelConfigs.GetById(state.CurrentLevelId);
         var aiType = levelConfig?.RivalAi ?? AiType.Random;
         var ai = AiRegistry.Get(aiType);

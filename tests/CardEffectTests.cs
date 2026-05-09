@@ -64,7 +64,7 @@ public class CardEffectTests
         var playerPos = FindFirstUnrevealed(state, TileOwner.Player);
 
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
-        var newState = CardEffectSystem.ExecuteSpritz(state, [playerPos], spritz);
+        var newState = CardEffectSystem.ExecuteSpritz(state, [playerPos], spritz, new Random(0));
 
         var annotation = newState.Board.GetTile(playerPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
@@ -81,7 +81,7 @@ public class CardEffectTests
         var neutralPos = FindFirstUnrevealed(state, TileOwner.Neutral);
 
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
-        var newState = CardEffectSystem.ExecuteSpritz(state, [neutralPos], spritz);
+        var newState = CardEffectSystem.ExecuteSpritz(state, [neutralPos], spritz, new Random(0));
 
         var annotation = newState.Board.GetTile(neutralPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
@@ -95,7 +95,7 @@ public class CardEffectTests
         var rivalPos = FindFirstUnrevealed(state, TileOwner.Rival);
 
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
-        var newState = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz);
+        var newState = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz, new Random(0));
 
         var annotation = newState.Board.GetTile(rivalPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
@@ -115,7 +115,7 @@ public class CardEffectTests
 
         // Spritz: dangerous → {Rival, Mine}
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
-        state = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz);
+        state = CardEffectSystem.ExecuteSpritz(state, [rivalPos], spritz, new Random(0));
 
         var annotation = state.Board.GetTile(rivalPos).Annotations.OwnerSubset;
         Assert.NotNull(annotation);
@@ -136,7 +136,7 @@ public class CardEffectTests
             MaxSpoons = 3
         };
 
-        var newState = CardEffectSystem.ExecuteSpritz(state, [dirtyTile.Position], state.Hand[0]);
+        var newState = CardEffectSystem.ExecuteSpritz(state, [dirtyTile.Position], state.Hand[0], new Random(0));
 
         var tile = newState.Board.GetTile(dirtyTile.Position);
         Assert.False(tile.IsDirty, "Spritz should remove ExtraDirty");
@@ -154,7 +154,7 @@ public class CardEffectTests
 
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
         Assert.Throws<ArgumentException>(() =>
-            CardEffectSystem.ExecuteSpritz(state, [pos], spritz));
+            CardEffectSystem.ExecuteSpritz(state, [pos], spritz, new Random(0)));
     }
 
     [Fact]
@@ -164,9 +164,9 @@ public class CardEffectTests
         var spritz = state.Hand.First(c => c.EffectType == CardEffectType.Spritz);
 
         Assert.Throws<ArgumentException>(() =>
-            CardEffectSystem.ExecuteSpritz(state, null, spritz));
+            CardEffectSystem.ExecuteSpritz(state, null, spritz, new Random(0)));
         Assert.Throws<ArgumentException>(() =>
-            CardEffectSystem.ExecuteSpritz(state, [], spritz));
+            CardEffectSystem.ExecuteSpritz(state, [], spritz, new Random(0)));
     }
 
     // --- Imperious Instructions Tests ---
@@ -610,7 +610,7 @@ public class CardEffectTests
         var dirtyTile = board.Tiles.First(t => t.IsDirty);
 
         // Use Sweep centered on dirty tile
-        var newState = CardEffectSystem.ExecuteSweep(state, [dirtyTile.Position]);
+        var newState = CardEffectSystem.ExecuteSweep(state, [dirtyTile.Position], new Random(0));
 
         var tile = newState.Board.GetTile(dirtyTile.Position);
         Assert.False(tile.IsDirty);
@@ -623,7 +623,7 @@ public class CardEffectTests
         var center = new Position(2, 3);
 
         // No dirty tiles on Level 1 — Sweep should return same state
-        var newState = CardEffectSystem.ExecuteSweep(state, [center]);
+        var newState = CardEffectSystem.ExecuteSweep(state, [center], new Random(0));
         Assert.Same(state, newState);
     }
 
@@ -1536,7 +1536,7 @@ public class CardEffectTests
                 TileOwner.Rival => 2, TileOwner.Noble => 1, _ => 0
             }).First();
 
-        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card);
+        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card, new Random(0));
 
         // All tiles of the safest type in the cross should be revealed
         foreach (var tile in unrevealed)
@@ -1595,7 +1595,7 @@ public class CardEffectTests
         var center = new Position(3, 3);
         var card = CardDefinitions.AcceptHelp with { Id = "ah1" };
 
-        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card);
+        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card, new Random(0));
 
         Assert.True(newState.AcceptHelpDiscount);
     }
@@ -1641,7 +1641,7 @@ public class CardEffectTests
 
         if (dirtyTile.Owner == safestType)
         {
-            var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card);
+            var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card, new Random(0));
 
             var tile = newState.Board.GetTile(dirtyTile.Position);
             Assert.False(tile.IsDirty, "ExtraDirty should be cleaned");
@@ -1657,7 +1657,7 @@ public class CardEffectTests
         var center = new Position(3, 3);
         var card = CardDefinitions.AcceptHelp with { Id = "ah1", Enhanced = true };
 
-        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card);
+        var newState = CardEffectSystem.ExecuteAcceptHelp(state, [center], card, new Random(0));
 
         // No tiles should be revealed (enhanced annotates instead)
         var crossTiles = BoardSystem.GetTilesInCross(state.Board, center);

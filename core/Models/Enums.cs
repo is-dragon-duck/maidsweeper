@@ -88,9 +88,33 @@ public enum CardEffectType
     RecallSarcastic  // Anti-pips showing where tiles probably AREN'T yours
 }
 
+/// <summary>
+/// Special-tile flags. Multiple flags can coexist on a single tile (e.g., a
+/// LoungingNoble overlay on an ExtraDirty tile). Uses [Flags] semantics.
+/// </summary>
+[Flags]
 public enum SpecialTileType
 {
-    ExtraDirty
+    None          = 0,
+    ExtraDirty    = 1 << 0,
+    Courtier      = 1 << 1,  // alpha: goblin
+    Soiree        = 1 << 2,  // alpha: lair
+    LoungingNoble = 1 << 3,  // alpha: surface mine
+    Sanctum       = 1 << 4,
+    InnerTile     = 1 << 5
+}
+
+/// <summary>
+/// Strategy for picking positions during special-tile placement at board creation.
+/// Mirrors the alpha config's `placement` field shapes.
+/// </summary>
+public enum PlacementStrategy
+{
+    Owners,    // restrict to SpecialTileConfig.EligibleOwners (existing default)
+    Random,    // any usable tile (alpha: "random")
+    NonMine,   // any non-noble usable tile (alpha: "nonmine")
+    Empty,     // places on UnusedLocations (alpha: "empty")
+    Explicit   // uses SpecialTileConfig.ExplicitPositions
 }
 
 public enum AdjacencyRule

@@ -65,35 +65,99 @@ public static class BoardSystem
             board = PlaceSpecialTiles(board, specialConfig, rng);
         }
 
+        // Initialize courtier MoveTargets for any courtier flags placed above
+        board = InitializeCourtierTargets(board, rng);
+
         return board;
     }
 
     /// <summary>
-    /// Randomly assigns a special tile type to eligible usable tiles.
+    /// Places special-tile flags onto tiles per the configured PlacementStrategy.
+    /// Multiple flags can coexist on a single tile; the strategy filters which positions
+    /// are eligible to receive this particular flag.
     /// </summary>
     private static Board PlaceSpecialTiles(Board board, SpecialTileConfig config, Random rng)
     {
-        var eligibleOwners = new HashSet<TileOwner>(config.EligibleOwners);
-        var candidates = board.Tiles
-            .Where(t => board.IsUsablePosition(t.Position)
-                        && !t.IsRevealed
-                        && t.SpecialTile == null
-                        && eligibleOwners.Contains(t.Owner))
-            .ToList();
-
-        Shuffle(candidates, rng);
-
-        var count = Math.Min(config.Count, candidates.Count);
         var newTiles = board.Tiles.ToList();
+        var picks = SelectPlacementPositions(board, config, rng);
 
-        for (var i = 0; i < count; i++)
+        foreach (var pos in picks)
         {
-            var tile = candidates[i];
-            var idx = board.TileIndex(tile.Position);
-            newTiles[idx] = tile with { SpecialTile = config.Type };
+            var idx = board.TileIndex(pos);
+            newTiles[idx] = newTiles[idx].WithSpecial(config.Type);
         }
 
         return board with { Tiles = newTiles };
+    }
+
+    private static List<Position> SelectPlacementPositions(
+        Board board,
+        SpecialTileConfig config,
+        Random rng)
+    {
+        switch (config.Strategy)
+        {
+            case PlacementStrategy.Explicit:
+                // Use exact positions; no shuffling, no count limit beyond list length.
+                return (config.ExplicitPositions ?? Array.Empty<Position>()).ToList();
+
+            case PlacementStrategy.Empty:
+            {
+                // Pick from UnusedPositions only.
+                var pool = board.UnusedPositions.ToList();
+                return ShuffleAndTake(pool, config.Count, rng);
+            }
+
+            case PlacementStrategy.NonMine:
+            {
+                // Any usable, unrevealed, non-noble tile that doesn't already have this flag.
+                var pool = board.Tiles
+                    .Where(t => board.IsUsablePosition(t.Position)
+                                && !t.IsRevealed
+                                && !t.Specials.HasFlag(config.Type)
+                                && t.Owner != TileOwner.Noble)
+                    .Select(t => t.Position)
+                    .ToList();
+                return ShuffleAndTake(pool, config.Count, rng);
+            }
+
+            case PlacementStrategy.Random:
+            {
+                // Any usable, unrevealed tile that doesn't already have this flag.
+                var pool = board.Tiles
+                    .Where(t => board.IsUsablePosition(t.Position)
+                                && !t.IsRevealed
+                                && !t.Specials.HasFlag(config.Type))
+                    .Select(t => t.Position)
+                    .ToList();
+                return ShuffleAndTake(pool, config.Count, rng);
+            }
+
+            case PlacementStrategy.Owners:
+            default:
+            {
+                // Restrict to specific owner types (existing behavior).
+                var eligibleOwners = new HashSet<TileOwner>(config.EligibleOwners);
+                var pool = board.Tiles
+                    .Where(t => board.IsUsablePosition(t.Position)
+                                && !t.IsRevealed
+                                && !t.Specials.HasFlag(config.Type)
+                                && eligibleOwners.Contains(t.Owner))
+                    .Select(t => t.Position)
+                    .ToList();
+                return ShuffleAndTake(pool, config.Count, rng);
+            }
+        }
+    }
+
+    private static List<Position> ShuffleAndTake(List<Position> pool, int count, Random rng)
+    {
+        for (var i = pool.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
+        }
+        return pool.Take(Math.Min(count, pool.Count)).ToList();
     }
 
     /// <summary>
@@ -147,7 +211,7 @@ public static class BoardSystem
         // ExtraDirty: player click cleans instead of revealing
         if (tile.IsDirty && revealedBy == PlayerType.Player)
         {
-            var cleanedTile = tile with { SpecialTile = null };
+            var cleanedTile = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
             var cleanedTiles = board.Tiles.ToList();
             cleanedTiles[board.TileIndex(pos)] = cleanedTile;
             return board with { Tiles = cleanedTiles };
@@ -269,5 +333,116 @@ public static class BoardSystem
             var j = rng.Next(i + 1);
             (list[i], list[j]) = (list[j], list[i]);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Courtiers + Soirées (M39)
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Picks a random adjacent eligible position for a courtier to move to.
+    /// Eligible = usable + unrevealed + not destroyed + not already a courtier.
+    /// Returns null if no eligible neighbor exists.
+    /// </summary>
+    public static Position? SelectCourtierTarget(Board board, Position from, Random rng)
+    {
+        var candidates = GetNeighbors(board, from)
+            .Where(n => board.IsUsablePosition(n))
+            .Where(n =>
+            {
+                var t = board.GetTile(n);
+                return !t.IsRevealed && !t.IsDestroyed && !t.IsCourtier;
+            })
+            .ToList();
+
+        if (candidates.Count == 0) return null;
+        return candidates[rng.Next(candidates.Count)];
+    }
+
+    /// <summary>
+    /// Sets MoveTargets for all courtier-flagged tiles that don't yet have one.
+    /// Called once after PlaceSpecialTiles during board creation.
+    /// </summary>
+    private static Board InitializeCourtierTargets(Board board, Random rng)
+    {
+        var positions = board.Tiles
+            .Where(t => t.IsCourtier && t.CourtierMoveTarget == null)
+            .Select(t => t.Position)
+            .ToList();
+
+        foreach (var pos in positions)
+        {
+            var target = SelectCourtierTarget(board, pos, rng);
+            var newTiles = board.Tiles.ToList();
+            newTiles[board.TileIndex(pos)] = board.GetTile(pos) with { CourtierMoveTarget = target };
+            board = board with { Tiles = newTiles };
+        }
+        return board;
+    }
+
+    /// <summary>
+    /// Removes the courtier flag from `from` and moves the courtier to its
+    /// MoveTarget. Handles collision (incoming courtier disappears if target
+    /// already has one) and target invalidation (destroyed/revealed/etc.).
+    /// </summary>
+    public static Board CleanCourtier(Board board, Position from, Random rng)
+    {
+        var origin = board.GetTile(from);
+        if (!origin.IsCourtier) return board;
+
+        // Remove courtier flag from origin (always)
+        var newTiles = board.Tiles.ToList();
+        newTiles[board.TileIndex(from)] = origin
+            .WithoutSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = null };
+        board = board with { Tiles = newTiles };
+
+        var target = origin.CourtierMoveTarget;
+        if (target == null) return board;
+        if (!board.IsValidPosition(target.Value)) return board;
+        if (!board.IsUsablePosition(target.Value)) return board;
+
+        var targetTile = board.GetTile(target.Value);
+        if (targetTile.IsRevealed || targetTile.IsDestroyed) return board;
+
+        // Collision: target already has a courtier — incoming courtier merges (disappears)
+        if (targetTile.IsCourtier) return board;
+
+        // Move courtier to target with a fresh MoveTarget
+        var newMoveTarget = SelectCourtierTarget(board, target.Value, rng);
+        var moved = targetTile
+            .WithSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = newMoveTarget };
+        newTiles = board.Tiles.ToList();
+        newTiles[board.TileIndex(target.Value)] = moved;
+        return board with { Tiles = newTiles };
+    }
+
+    /// <summary>
+    /// For each soirée tile, spawns 1 courtier on a random adjacent eligible tile
+    /// (per SelectCourtierTarget rules). No-op when a soirée has no eligible neighbor.
+    /// Called at the start of each rival turn.
+    /// </summary>
+    public static Board SpawnCourtiersFromSoirees(Board board, Random rng)
+    {
+        var soireePositions = board.Tiles
+            .Where(t => t.IsSoiree && !t.IsDestroyed)
+            .Select(t => t.Position)
+            .ToList();
+
+        foreach (var soireePos in soireePositions)
+        {
+            var spawnAt = SelectCourtierTarget(board, soireePos, rng);
+            if (spawnAt == null) continue;
+
+            var newMoveTarget = SelectCourtierTarget(board, spawnAt.Value, rng);
+            var spawnTile = board.GetTile(spawnAt.Value);
+            var spawned = spawnTile
+                .WithSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = newMoveTarget };
+
+            var newTiles = board.Tiles.ToList();
+            newTiles[board.TileIndex(spawnAt.Value)] = spawned;
+            board = board with { Tiles = newTiles };
+        }
+
+        return board;
     }
 }
