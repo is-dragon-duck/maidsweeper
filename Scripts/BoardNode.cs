@@ -80,7 +80,8 @@ public partial class BoardNode : Node2D
 
                 // Set initial visual state (no clues at game start)
                 var tile = board.GetTile(pos);
-                tileNode.UpdateFromTile(tile, []);
+                var canReach = !tile.IsInner || BoardSystem.CanReachInnerTile(board, pos);
+                tileNode.UpdateFromTile(tile, [], canReachInner: canReach);
             }
         }
     }
@@ -102,7 +103,8 @@ public partial class BoardNode : Node2D
                     && tile.RevealedBy == PlayerType.Player
                     && BoardSystem.IsSaturated(board, pos);
                 var intent = intentPoints != null && intentPoints.TryGetValue(pos, out var pts) ? pts : 0;
-                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated, intent);
+                var canReach = !tile.IsInner || BoardSystem.CanReachInnerTile(board, pos);
+                _tileNodes[row, col].UpdateFromTile(tile, globalClueOrder, viewingPerspective, saturated, intent, canReach);
             }
         }
     }

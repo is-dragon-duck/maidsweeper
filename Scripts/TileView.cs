@@ -56,6 +56,15 @@ public partial class TileView : Control
     // Rival intent point marks (bottom-center): tiny blue X per point, large X per 5 points
     private static readonly Color IntentMarkColor = new(0.45f, 0.7f, 1.0f);
 
+    // Stage 5 special-tile colors
+    private static readonly Color CourtierColor = new(0.6f, 0.85f, 0.4f);          // bright green
+    private static readonly Color CourtierArrowColor = new(0.4f, 0.65f, 0.25f);    // dark green
+    private static readonly Color SoireeColor = new(0.95f, 0.55f, 0.25f);          // orange
+    private static readonly Color LoungingNobleColor = new(0.7f, 0.4f, 0.85f);     // noble purple, applied as overlay
+    private static readonly Color SanctumOuterColor = new(0.85f, 0.75f, 0.95f);    // pale purple ring (unrevealed)
+    private static readonly Color SanctumPortalColor = new(0.55f, 0.3f, 0.75f);    // deep purple core (revealed)
+    private static readonly Color InnerLockColor = new(0.45f, 0.45f, 0.55f);       // gray padlock for unreachable
+
     private bool _isRevealed;
     private TileOwner _owner;
     private int _adjacencyCount;
@@ -67,6 +76,15 @@ public partial class TileView : Control
     private bool _isUnused;
     private bool _isDirty;
     private bool _isDestroyed;
+    // Stage 5 special-tile flags
+    private bool _isCourtier;
+    private bool _isSoiree;
+    private bool _isLoungingNoble;
+    private bool _isSanctum;
+    private bool _isInner;
+    private bool _canReachInner;
+    private Position? _courtierMoveTarget;
+    private Position _selfPosition;
     private TileAnnotations _annotations = new();
     private List<string> _globalClueOrder = [];
     private TileOwner? _viewingPerspective;
@@ -188,7 +206,12 @@ public partial class TileView : Control
 
     public override void _Draw()
     {
-        if (_isUnused) return;
+        if (_isUnused)
+        {
+            // A soirée sits on an unused (hole) tile and must still be visible.
+            if (_isSoiree) DrawSoireeMark();
+            return;
+        }
 
         var rect = new Rect2(Vector2.Zero, Size);
 
@@ -267,7 +290,152 @@ public partial class TileView : Control
                 DrawDirtyIndicator();
             }
             DrawIntentMarks();
+            if (_isLoungingNoble)
+            {
+                DrawLoungingNobleOverlay();
+            }
+            if (_isCourtier)
+            {
+                DrawCourtierOverlay();
+            }
         }
+
+        // Sanctum/inner-tile overlays paint on top of either revealed or unrevealed state.
+        if (_isSanctum)
+        {
+            DrawSanctumOverlay();
+        }
+        if (_isInner && !_canReachInner)
+        {
+            DrawInnerLockOverlay();
+        }
+    }
+
+    // ───────────────────────────────────────────────
+    // Stage 5 special-tile overlays
+    // ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Soirée: orange filled diamond at tile center. Drawn even on hole tiles
+    /// (where the rest of the tile is invisible).
+    /// </summary>
+    private void DrawSoireeMark()
+    {
+        var center = new Vector2(Size.X / 2, Size.Y / 2);
+        var half = 10f;
+        DrawPolygon([
+            new Vector2(center.X, center.Y - half),
+            new Vector2(center.X + half, center.Y),
+            new Vector2(center.X, center.Y + half),
+            new Vector2(center.X - half, center.Y)
+        ], [SoireeColor]);
+        // Thin outline so it stays visible against darker UI backgrounds.
+        DrawLine(new Vector2(center.X, center.Y - half), new Vector2(center.X + half, center.Y),
+            SoireeColor.Darkened(0.4f), 1f);
+        DrawLine(new Vector2(center.X + half, center.Y), new Vector2(center.X, center.Y + half),
+            SoireeColor.Darkened(0.4f), 1f);
+        DrawLine(new Vector2(center.X, center.Y + half), new Vector2(center.X - half, center.Y),
+            SoireeColor.Darkened(0.4f), 1f);
+        DrawLine(new Vector2(center.X - half, center.Y), new Vector2(center.X, center.Y - half),
+            SoireeColor.Darkened(0.4f), 1f);
+    }
+
+    /// <summary>
+    /// Lounging noble: small noble-shaped (octagon) inset, top-left of unrevealed tile.
+    /// Indicates the tile will function as a noble if revealed by the player.
+    /// </summary>
+    private void DrawLoungingNobleOverlay()
+    {
+        var center = new Vector2(11f, 11f);
+        var half = 7f;
+        DrawOwnerShape(center, half, TileOwner.Noble, LoungingNobleColor);
+        DrawOwnerShape(center, half, TileOwner.Noble, LoungingNobleColor.Darkened(0.5f));
+    }
+
+    /// <summary>
+    /// Courtier: small green triangle in the bottom-left of the tile, plus a thin
+    /// arrow line pointing toward its MoveTarget (clamped to the tile edge).
+    /// </summary>
+    private void DrawCourtierOverlay()
+    {
+        var center = new Vector2(11f, Size.Y - 11f);
+        var r = 7f;
+        // Triangle pointing up
+        DrawPolygon([
+            new Vector2(center.X, center.Y - r),
+            new Vector2(center.X + r, center.Y + r),
+            new Vector2(center.X - r, center.Y + r)
+        ], [CourtierColor]);
+        DrawLine(new Vector2(center.X, center.Y - r), new Vector2(center.X + r, center.Y + r),
+            CourtierColor.Darkened(0.4f), 1f);
+        DrawLine(new Vector2(center.X + r, center.Y + r), new Vector2(center.X - r, center.Y + r),
+            CourtierColor.Darkened(0.4f), 1f);
+        DrawLine(new Vector2(center.X - r, center.Y + r), new Vector2(center.X, center.Y - r),
+            CourtierColor.Darkened(0.4f), 1f);
+
+        // Arrow toward MoveTarget (if any), drawn from tile center to the target edge
+        if (_courtierMoveTarget is { } target)
+        {
+            var dRow = target.Row - _selfPosition.Row;
+            var dCol = target.Col - _selfPosition.Col;
+            if (dRow == 0 && dCol == 0) return;
+
+            var tileCenter = new Vector2(Size.X / 2f, Size.Y / 2f);
+            var dir = new Vector2(dCol, dRow).Normalized();
+            var arrowLen = 14f;
+            var tip = tileCenter + dir * arrowLen;
+            DrawLine(tileCenter, tip, CourtierArrowColor, 2f);
+
+            // Arrowhead
+            var perp = new Vector2(-dir.Y, dir.X);
+            var headBase = tip - dir * 4f;
+            DrawLine(tip, headBase + perp * 3f, CourtierArrowColor, 2f);
+            DrawLine(tip, headBase - perp * 3f, CourtierArrowColor, 2f);
+        }
+    }
+
+    /// <summary>
+    /// Sanctum: when unrevealed, draw a pale purple ring border.
+    /// When revealed, the tile already shows its adjacency badge — overlay a
+    /// darker purple ring to flag it as a portal that bridges adjacency.
+    /// </summary>
+    private void DrawSanctumOverlay()
+    {
+        var center = new Vector2(Size.X / 2f, Size.Y / 2f);
+        var radius = Size.X * 0.42f;
+        if (!_isRevealed)
+        {
+            DrawArc(center, radius, 0f, Mathf.Tau, 32, SanctumOuterColor, 3f);
+        }
+        else
+        {
+            DrawArc(center, radius, 0f, Mathf.Tau, 32, SanctumPortalColor, 2.5f);
+            // Small portal "core" dot at upper-right corner
+            DrawCircle(new Vector2(Size.X - 9f, 9f), 4f, SanctumPortalColor);
+        }
+    }
+
+    /// <summary>
+    /// Inner tile that can't currently be reached (no adjacent sanctum revealed).
+    /// Dim the whole tile and overlay a small padlock-style icon.
+    /// </summary>
+    private void DrawInnerLockOverlay()
+    {
+        // Dim the tile contents
+        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0f, 0f, 0f, 0.45f));
+
+        // Padlock: small rectangle with a U-shaped shackle on top
+        var bodyW = 12f;
+        var bodyH = 10f;
+        var cx = Size.X / 2f;
+        var cy = Size.Y / 2f + 2f;
+        var bodyRect = new Rect2(cx - bodyW / 2f, cy - bodyH / 2f, bodyW, bodyH);
+        DrawRect(bodyRect, InnerLockColor);
+        DrawRect(bodyRect, InnerLockColor.Darkened(0.4f), false, 1f);
+
+        // Shackle (arc above the body)
+        var shackleCenter = new Vector2(cx, cy - bodyH / 2f);
+        DrawArc(shackleCenter, 4f, Mathf.Pi, Mathf.Tau, 12, InnerLockColor.Darkened(0.4f), 1.5f);
     }
 
     /// <summary>
@@ -605,7 +773,7 @@ public partial class TileView : Control
     // State updates
     // ───────────────────────────────────────────────
 
-    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false, int intentPoints = 0)
+    public void UpdateVisual(Tile tile, List<string> globalClueOrder, TileOwner? viewingPerspective = null, bool saturated = false, int intentPoints = 0, bool canReachInner = true)
     {
         // Track Brat un-reveal: if tile was revealed and is now unrevealed, preserve adjacency
         if (_isRevealed && !tile.IsRevealed)
@@ -630,6 +798,14 @@ public partial class TileView : Control
         _globalClueOrder = globalClueOrder;
         _viewingPerspective = viewingPerspective;
         _intentPoints = intentPoints;
+        _isCourtier = tile.IsCourtier;
+        _isSoiree = tile.IsSoiree;
+        _isLoungingNoble = tile.IsLoungingNoble;
+        _isSanctum = tile.IsSanctum;
+        _isInner = tile.IsInner;
+        _canReachInner = canReachInner;
+        _courtierMoveTarget = tile.CourtierMoveTarget;
+        _selfPosition = tile.Position;
         QueueRedraw();
     }
 

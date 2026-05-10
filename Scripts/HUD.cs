@@ -1,6 +1,7 @@
 using System.Linq;
 using Godot;
 using Maidsweeper.Core.Models;
+using Maidsweeper.Core.Systems.AI;
 
 namespace Maidsweeper.Scripts;
 
@@ -28,6 +29,8 @@ public partial class HUD : VBoxContainer
     private Label _copperLabel = null!;
     private Label _floorLabel = null!;
     private Label _adjacencyLabel = null!;
+    private Label _rivalAiLabel = null!;
+    private Label _rivalProtectionLabel = null!;
     private Label _statusEffectsLabel = null!;
     private Label _equipmentLabel = null!;
     private Button _endTurnButton = null!;
@@ -69,6 +72,18 @@ public partial class HUD : VBoxContainer
         _adjacencyLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.85f, 1.0f));
         _adjacencyLabel.Visible = false;
         AddChild(_adjacencyLabel);
+
+        _rivalAiLabel = new Label { Text = "" };
+        _rivalAiLabel.AddThemeFontSizeOverride("font_size", 12);
+        _rivalAiLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.7f, 0.95f));
+        _rivalAiLabel.Visible = false;
+        AddChild(_rivalAiLabel);
+
+        _rivalProtectionLabel = new Label { Text = "" };
+        _rivalProtectionLabel.AddThemeFontSizeOverride("font_size", 12);
+        _rivalProtectionLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.75f, 0.4f));
+        _rivalProtectionLabel.Visible = false;
+        AddChild(_rivalProtectionLabel);
 
         AddChild(new HSeparator());
 
@@ -193,7 +208,9 @@ public partial class HUD : VBoxContainer
         _exhaustButton.Text = $"Exhaust: {state.ExhaustPile.Count}";
 
         var floorNum = GetFloorNumber(state.CurrentLevelId);
-        _floorLabel.Text = $"Floor {floorNum}/8";
+        _floorLabel.Text = $"Floor {floorNum}/21";
+
+        var levelConfig = LevelConfigs.GetById(state.CurrentLevelId);
 
         // Adjacency indicator: only show when non-default (Manhattan-2)
         if (state.Board.AdjacencyRule == AdjacencyRule.Manhattan2)
@@ -204,6 +221,28 @@ public partial class HUD : VBoxContainer
         else
         {
             _adjacencyLabel.Visible = false;
+        }
+
+        // Rival AI badge: only show when not the default Random
+        if (levelConfig != null && levelConfig.RivalAi != AiType.Random)
+        {
+            _rivalAiLabel.Text = $"Rival AI: {levelConfig.RivalAi}";
+            _rivalAiLabel.Visible = true;
+        }
+        else
+        {
+            _rivalAiLabel.Visible = false;
+        }
+
+        // Mine-protection indicator: shrinks as the rival absorbs nobles.
+        if (state.RivalMineProtectionCount > 0)
+        {
+            _rivalProtectionLabel.Text = $"Rival mine protection: {state.RivalMineProtectionCount}";
+            _rivalProtectionLabel.Visible = true;
+        }
+        else
+        {
+            _rivalProtectionLabel.Visible = false;
         }
 
         _turnLabel.Text = state.CurrentPlayer == PlayerType.Player ? "Your Turn" : "Rival Turn";
@@ -243,6 +282,12 @@ public partial class HUD : VBoxContainer
             effects.Add($"Adopt: {state.AdoptStacks}");
         if (state.VisitingBunnyPendingReveals > 0)
             effects.Add($"Bunny: {state.VisitingBunnyPendingReveals}");
+        if (levelConfig != null && levelConfig.RivalPlacesMines > 0)
+            effects.Add($"Rival places lounging: {levelConfig.RivalPlacesMines}/turn");
+        if (levelConfig != null && levelConfig.RivalNeverNobles)
+            effects.Add("Rival never reveals nobles");
+        if (state.ActiveTaunts.Count > 0)
+            effects.Add($"Taunts active: {state.ActiveTaunts.Count}");
         // Keep the label always laid out; empty text just shows blank space (reserved by CustomMinimumSize).
         _statusEffectsLabel.Text = effects.Count > 0 ? string.Join("\n", effects) : "";
 

@@ -495,7 +495,12 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Status effect entries for `rivalNeverMines`, `rivalPlacesMines`, taunt
 - Targeting UI for directional cards (Gaze/Fetch arrow picker)
 
-**Status**: Not Started
+**Status**: Complete (806 tests; 6 new in Stage5UiDataTests covering CanReachInnerTile + HUD floor parse).
+- TileView renders Sanctum (pale ring unrevealed / portal core revealed), Inner tile padlock when unreachable, LoungingNoble noble-octagon inset, Courtier green triangle + arrow toward `CourtierMoveTarget`, Soirée orange diamond on hole tiles.
+- BoardNode computes `CanReachInnerTile` per tile and forwards via `UpdateFromTile(..., canReachInner)`.
+- HUD adds Rival AI badge (hidden when Random), `RivalMineProtectionCount` indicator, status entries for `RivalPlacesMines`, `RivalNeverNobles`, and active taunts; floor counter bumped to `/21`.
+- Intent overlay (existing X-mark in `DrawIntentMarks`) and per-tile annotations were already in place.
+- Deferred (out of scope here): rival intent number badge toggle, Gaze/Fetch directional arrow picker — handled at card-targeting layer when those cards' UI is wired up.
 
 ---
 
