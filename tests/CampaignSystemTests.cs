@@ -173,27 +173,37 @@ public class CampaignSystemTests
         var state = CampaignSystem.StartCampaign(rng);
         var seed = 99;
 
-        // Progress through floors 1-7 (each has a next level)
-        var expectedLevels = new[] { "level2", "level3", "level4", "level5", "level6", "level7", "level8" };
+        // Progress through every floor that points at an implemented next level.
+        var expectedLevels = new[]
+        {
+            "level2",  "level3",  "level4",  "level5",  "level6",  "level7",
+            "level8",  "level9",  "level10", "level11", "level12", "level13",
+            "level14", "level15", "level16", "level17", "level18", "level19",
+            "level20", "level21"
+        };
         for (var i = 0; i < expectedLevels.Length; i++)
         {
             state = state with { GameStatus = GameStatus.Won };
             state = CampaignSystem.CompleteFloor(state, new Random(seed++));
 
-            if (state.GamePhase == GamePhase.CardReward)
-                state = CampaignSystem.SkipCardReward(state, new Random(seed++));
-            if (state.GamePhase == GamePhase.UpgradeReward)
-                state = CampaignSystem.SkipUpgrade(state, new Random(seed++));
-            if (state.GamePhase == GamePhase.EquipmentReward)
-                state = CampaignSystem.SkipEquipment(state, new Random(seed++));
-            if (state.GamePhase == GamePhase.Shop)
-                state = CampaignSystem.LeaveShop(state, new Random(seed++));
+            while (state.GamePhase != GamePhase.Playing && state.GamePhase != GamePhase.CampaignVictory)
+            {
+                state = state.GamePhase switch
+                {
+                    GamePhase.CardReward => CampaignSystem.SkipCardReward(state, new Random(seed++)),
+                    GamePhase.UpgradeReward => CampaignSystem.SkipUpgrade(state, new Random(seed++)),
+                    GamePhase.EquipmentReward => CampaignSystem.SkipEquipment(state, new Random(seed++)),
+                    GamePhase.Shop => CampaignSystem.LeaveShop(state, new Random(seed++)),
+                    _ => state
+                };
+            }
 
             Assert.Equal(expectedLevels[i], state.CurrentLevelId);
             Assert.Equal(GamePhase.Playing, state.GamePhase);
         }
 
-        // Floor 8 → victory
+        // Floor 21: no rewards, no NextLevelId → CompleteFloor lands directly on
+        // CampaignVictory.
         state = state with { GameStatus = GameStatus.Won };
         state = CampaignSystem.CompleteFloor(state, new Random(seed));
         Assert.Equal(GamePhase.CampaignVictory, state.GamePhase);
@@ -1180,24 +1190,30 @@ public class CampaignSystemTests
     [Fact]
     public void RewardFlow_FullCampaign_PhaseSequenceMatchesTable()
     {
-        // Expected phase sequence per floor end → next floor:
-        // Floor 1 → 2:  Card
-        // Floor 2 → 3:  Card, Upgrade
-        // Floor 3 → 4:  Equipment
-        // Floor 4 → 5:  Shop
-        // Floor 5 → 6:  Card, Equipment
-        // Floor 6 → 7:  Card
-        // Floor 7 → 8:  Card, Upgrade
-        // Floor 8: no rewards (campaign ends)
+        // Expected phase sequence per floor end → next floor (alpha levels-config.json).
+        // Floor 21 has no rewards (winTheGame) and is handled separately below.
         var expectedPhases = new[]
         {
-            new[] { GamePhase.CardReward },
-            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },
-            new[] { GamePhase.EquipmentReward },
-            new[] { GamePhase.Shop },
-            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },
-            new[] { GamePhase.CardReward },
-            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },
+            new[] { GamePhase.CardReward },                                    // 1 → 2
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },           // 2 → 3
+            new[] { GamePhase.EquipmentReward },                               // 3 → 4
+            new[] { GamePhase.Shop },                                          // 4 → 5
+            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },         // 5 → 6
+            new[] { GamePhase.CardReward },                                    // 6 → 7
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },           // 7 → 8
+            new[] { GamePhase.Shop },                                          // 8 → 9
+            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },         // 9 → 10
+            new[] { GamePhase.CardReward },                                    // 10 → 11
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },           // 11 → 12
+            new[] { GamePhase.Shop },                                          // 12 → 13
+            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },         // 13 → 14
+            new[] { GamePhase.CardReward },                                    // 14 → 15
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },           // 15 → 16
+            new[] { GamePhase.Shop },                                          // 16 → 17
+            new[] { GamePhase.CardReward, GamePhase.EquipmentReward },         // 17 → 18
+            new[] { GamePhase.CardReward },                                    // 18 → 19
+            new[] { GamePhase.CardReward, GamePhase.UpgradeReward },           // 19 → 20
+            new[] { GamePhase.Shop },                                          // 20 → 21
         };
 
         var rng = new Random(42);
@@ -1226,7 +1242,8 @@ public class CampaignSystemTests
             Assert.Equal(expectedPhases[floorIdx], observed.ToArray());
         }
 
-        // Floor 8 → campaign victory (no NextLevelId)
+        // Floor 21: alpha "winTheGame" — no rewards, no NextLevelId. CompleteFloor
+        // immediately transitions to CampaignVictory.
         state = state with { GameStatus = GameStatus.Won };
         state = CampaignSystem.CompleteFloor(state, new Random(seed));
         Assert.Equal(GamePhase.CampaignVictory, state.GamePhase);
@@ -1249,8 +1266,9 @@ public class CampaignSystemTests
     [Fact]
     public void RewardFlow_ShopPhaseOnlyOnConfiguredFloors()
     {
-        // Only Level4 should have Shop in the M33 table
+        // Per alpha levels-config: L4 and L8 grant shops.
         Assert.True(LevelConfigs.Level4.UponFinish!.Shop);
+        Assert.True(LevelConfigs.Level8.UponFinish!.Shop);
 
         Assert.False(LevelConfigs.Level1.UponFinish!.Shop);
         Assert.False(LevelConfigs.Level2.UponFinish!.Shop);
@@ -1261,14 +1279,14 @@ public class CampaignSystemTests
     }
 
     [Fact]
-    public void RewardFlow_FinalFloorGoesDirectlyToVictory()
+    public void RewardFlow_FinalFloor_WinTheGameDirectly()
     {
-        // Drive a state at level8 (final) with Won status; CompleteFloor → CampaignVictory
+        // L21 is the alpha's winTheGame floor: no rewards, no NextLevelId.
+        // CompleteFloor on L21 should land directly on CampaignVictory.
         var rng = new Random(42);
         var state = CampaignSystem.StartCampaign(rng);
-        // Walk to level 8
         var seed = 99;
-        for (var i = 0; i < 7; i++)
+        for (var i = 0; i < 20; i++)
         {
             state = state with { GameStatus = GameStatus.Won };
             state = CampaignSystem.CompleteFloor(state, new Random(seed++));
@@ -1284,11 +1302,10 @@ public class CampaignSystemTests
                 };
             }
         }
-        Assert.Equal("level8", state.CurrentLevelId);
+        Assert.Equal("level21", state.CurrentLevelId);
 
         state = state with { GameStatus = GameStatus.Won };
         state = CampaignSystem.CompleteFloor(state, new Random(seed));
-
         Assert.Equal(GamePhase.CampaignVictory, state.GamePhase);
     }
 

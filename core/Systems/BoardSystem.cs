@@ -11,7 +11,27 @@ public static class BoardSystem
     public static Board CreateBoard(LevelConfig config, Random rng)
     {
         var totalTiles = config.Width * config.Height;
-        var unusedSet = new HashSet<Position>(config.UnusedLocations);
+
+        // Resolve hole positions: explicit list wins; otherwise honor RandomUnusedCount.
+        HashSet<Position> unusedSet;
+        if (config.UnusedLocations.Count > 0)
+        {
+            unusedSet = new HashSet<Position>(config.UnusedLocations);
+        }
+        else if (config.RandomUnusedCount > 0)
+        {
+            var allPositions = new List<Position>(totalTiles);
+            for (var row = 0; row < config.Height; row++)
+            for (var col = 0; col < config.Width; col++)
+                allPositions.Add(new Position(row, col));
+            unusedSet = new HashSet<Position>(
+                ShuffleAndTake(allPositions, config.RandomUnusedCount, rng));
+        }
+        else
+        {
+            unusedSet = new HashSet<Position>();
+        }
+
         var usableCount = totalTiles - unusedSet.Count;
         var expectedTiles = config.PlayerCount + config.RivalCount + config.NeutralCount + config.NobleCount;
 
@@ -65,10 +85,54 @@ public static class BoardSystem
             board = PlaceSpecialTiles(board, specialConfig, rng);
         }
 
+        // Inner tiles: each sanctum claims ceil(eligible-neighbors / 2) of them
+        board = InitializeInnerTiles(board, rng);
+
         // Initialize courtier MoveTargets for any courtier flags placed above
         board = InitializeCourtierTargets(board, rng);
 
         return board;
+    }
+
+    /// <summary>
+    /// For every sanctum on the board, picks <c>ceil(N/2)</c> of its spatial
+    /// neighbors (excluding empty positions and other sanctums) and marks them
+    /// <see cref="SpecialTileType.InnerTile"/>. Mirrors the alpha's
+    /// <c>setupSanctumsAndInnerTiles</c>. A neighbor that has been claimed by a
+    /// previous sanctum may still be picked again — the InnerTile flag is
+    /// idempotent and that tile simply ends up adjacent to multiple sanctums.
+    /// </summary>
+    private static Board InitializeInnerTiles(Board board, Random rng)
+    {
+        var sanctumPositions = board.Tiles
+            .Where(t => t.IsSanctum)
+            .Select(t => t.Position)
+            .ToList();
+        if (sanctumPositions.Count == 0) return board;
+
+        var innerSet = new HashSet<Position>();
+        foreach (var sanctum in sanctumPositions)
+        {
+            var candidates = DirectOffsetNeighbors(board, sanctum)
+                .Where(p => board.IsUsablePosition(p))
+                .Where(p => !board.GetTile(p).IsSanctum)
+                .ToList();
+            if (candidates.Count == 0) continue;
+
+            var pickCount = (candidates.Count + 1) / 2; // ceil(N/2)
+            var picks = ShuffleAndTake(candidates, pickCount, rng);
+            foreach (var p in picks) innerSet.Add(p);
+        }
+
+        if (innerSet.Count == 0) return board;
+
+        var newTiles = board.Tiles.ToList();
+        foreach (var p in innerSet)
+        {
+            var idx = board.TileIndex(p);
+            newTiles[idx] = newTiles[idx].WithSpecial(SpecialTileType.InnerTile);
+        }
+        return board with { Tiles = newTiles };
     }
 
     /// <summary>
@@ -98,13 +162,25 @@ public static class BoardSystem
         switch (config.Strategy)
         {
             case PlacementStrategy.Explicit:
-                // Use exact positions; no shuffling, no count limit beyond list length.
-                return (config.ExplicitPositions ?? Array.Empty<Position>()).ToList();
+            {
+                // Filter explicit positions to those that pass the type-specific
+                // exclusion rules, then shuffle and take Count (alpha behavior:
+                // candidate pool larger than count is allowed).
+                var pool = (config.ExplicitPositions ?? Array.Empty<Position>())
+                    .Where(p => board.IsValidPosition(p)
+                                && !board.GetTile(p).Specials.HasFlag(config.Type)
+                                && IsCompatibleSpecial(board, p, config.Type))
+                    .ToList();
+                return ShuffleAndTake(pool, config.Count, rng);
+            }
 
             case PlacementStrategy.Empty:
             {
                 // Pick from UnusedPositions only.
-                var pool = board.UnusedPositions.ToList();
+                var pool = board.UnusedPositions
+                    .Where(p => !board.GetTile(p).Specials.HasFlag(config.Type)
+                                && IsCompatibleSpecial(board, p, config.Type))
+                    .ToList();
                 return ShuffleAndTake(pool, config.Count, rng);
             }
 
@@ -115,7 +191,8 @@ public static class BoardSystem
                     .Where(t => board.IsUsablePosition(t.Position)
                                 && !t.IsRevealed
                                 && !t.Specials.HasFlag(config.Type)
-                                && t.Owner != TileOwner.Noble)
+                                && t.Owner != TileOwner.Noble
+                                && IsCompatibleSpecial(board, t.Position, config.Type))
                     .Select(t => t.Position)
                     .ToList();
                 return ShuffleAndTake(pool, config.Count, rng);
@@ -127,7 +204,8 @@ public static class BoardSystem
                 var pool = board.Tiles
                     .Where(t => board.IsUsablePosition(t.Position)
                                 && !t.IsRevealed
-                                && !t.Specials.HasFlag(config.Type))
+                                && !t.Specials.HasFlag(config.Type)
+                                && IsCompatibleSpecial(board, t.Position, config.Type))
                     .Select(t => t.Position)
                     .ToList();
                 return ShuffleAndTake(pool, config.Count, rng);
@@ -142,12 +220,27 @@ public static class BoardSystem
                     .Where(t => board.IsUsablePosition(t.Position)
                                 && !t.IsRevealed
                                 && !t.Specials.HasFlag(config.Type)
-                                && eligibleOwners.Contains(t.Owner))
+                                && eligibleOwners.Contains(t.Owner)
+                                && IsCompatibleSpecial(board, t.Position, config.Type))
                     .Select(t => t.Position)
                     .ToList();
                 return ShuffleAndTake(pool, config.Count, rng);
             }
         }
+    }
+
+    /// <summary>
+    /// Alpha rule: a courtier and a lounging noble (alpha "surfaceMine") may
+    /// not occupy the same tile. Other special-tile combinations are allowed.
+    /// </summary>
+    private static bool IsCompatibleSpecial(Board board, Position pos, SpecialTileType incoming)
+    {
+        var tile = board.GetTile(pos);
+        if (incoming == SpecialTileType.LoungingNoble && tile.Specials.HasFlag(SpecialTileType.Courtier))
+            return false;
+        if (incoming == SpecialTileType.Courtier && tile.Specials.HasFlag(SpecialTileType.LoungingNoble))
+            return false;
+        return true;
     }
 
     private static List<Position> ShuffleAndTake(List<Position> pool, int count, Random rng)

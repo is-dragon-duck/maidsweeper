@@ -423,7 +423,7 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - Reward flow per level matches alpha's `uponFinish`
 - L8 has courtiers and soirées as configured
 
-**Status**: Not Started
+**Status**: Complete (617 tests; 77 new in AlphaLevelConfigTests; BoardLayout bumped to 608×608, BoardMargin to 648×648; L8 now has Shop reward + nextLevel "level9" placeholder)
 
 ---
 
@@ -445,7 +445,11 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - AI assignment is correct per level (Conservative vs. Reasoning)
 - Special tile counts and behaviors line up
 
-**Status**: Not Started
+**Status**: Complete (715 tests; 91 new in AlphaLevel9To15Tests). Notable additions:
+- `LevelConfig.RandomUnusedCount` field + BoardSystem honors it (alpha L12/L14/L15 use `unusedLocations: 20`)
+- `PlacementStrategy.Explicit` now shuffles candidates and takes `Count` (alpha L13 picks 4 of 8 lair positions)
+- Surface-mine ↔ courtier mutual exclusion enforced in `BoardSystem.PlaceSpecialTiles`
+- BoardLayout bumped to 676×676 (10×10), BoardMargin to 716×716
 
 ---
 
@@ -466,7 +470,10 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - L21 marks `winTheGame = true` (`UponFinish.NextLevelId == null`)
 - Sanctum + inner cluster integrity (pairs of sanctums route to inner tiles correctly)
 
-**Status**: Not Started
+**Status**: Complete (800 tests; 79 new in AlphaLevel16To21Tests). Notable additions:
+- `BoardSystem.InitializeInnerTiles` runs after special-tile placement: each sanctum picks `ceil(eligible-neighbors / 2)` of its raw spatial neighbors (excluding empties and other sanctums) and marks them `InnerTile`. Mirrors the alpha's `setupSanctumsAndInnerTiles`.
+- L21 is the alpha "winTheGame" floor: empty `UponFinish` (no rewards, `NextLevelId == null`) means `CompleteFloor` lands directly on `CampaignVictory`.
+- `CampaignProgressesThroughAllFloors` and the M33 phase-table test now walk all 21 floors.
 
 ---
 

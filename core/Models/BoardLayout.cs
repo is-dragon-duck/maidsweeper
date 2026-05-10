@@ -12,10 +12,10 @@ public static class BoardLayout
 
     /// <summary>
     /// Maximum interior board area (excluding the BoardMargin's outer padding).
-    /// Sized for the largest configured level (Floor 8: 8x7).
+    /// Sized for the largest configured level (alpha L13/L18/L20/L21: 10×10 = 676×676).
     /// </summary>
-    public const int MaxGridWidthPx = 540;
-    public const int MaxGridHeightPx = 472;
+    public const int MaxGridWidthPx = 676;
+    public const int MaxGridHeightPx = 676;
 
     public static int RequiredWidth(int cols) =>
         cols <= 0 ? 0 : cols * TileSize + (cols - 1) * TileGap;

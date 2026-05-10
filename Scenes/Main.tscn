@@ -44,7 +44,7 @@ layout_mode = 2
 size_flags_vertical = 3
 
 [node name="BoardMargin" type="MarginContainer" parent="Layout/TopArea" unique_id=1615879546]
-custom_minimum_size = Vector2(580, 512)
+custom_minimum_size = Vector2(716, 716)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/margin_left = 20

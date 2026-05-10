@@ -18,6 +18,19 @@ public class BoardLayoutTests
     [InlineData("level6")]
     [InlineData("level7")]
     [InlineData("level8")]
+    [InlineData("level9")]
+    [InlineData("level10")]
+    [InlineData("level11")]
+    [InlineData("level12")]
+    [InlineData("level13")]
+    [InlineData("level14")]
+    [InlineData("level15")]
+    [InlineData("level16")]
+    [InlineData("level17")]
+    [InlineData("level18")]
+    [InlineData("level19")]
+    [InlineData("level20")]
+    [InlineData("level21")]
     public void Level_FitsWithinBoardArea(string levelId)
     {
         var config = LevelConfigs.GetById(levelId);
