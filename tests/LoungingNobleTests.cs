@@ -183,7 +183,7 @@ public class LoungingNobleTests
         var state = BuildLoungingState(pos, underlyingOwner: TileOwner.Player);
         state = state with { Hand = new List<Card> { CardDefinitions.Sweep with { Id = "sw1" } }, Spoons = 3 };
 
-        var newState = CardEffectSystem.ExecuteSweep(state, new[] { pos }, new Random(7));
+        var newState = CardEffectSystem.ExecuteSweep(state, new[] { pos }, new Random(7), CardDefinitions.Sweep);
 
         Assert.False(newState.Board.GetTile(pos).IsLoungingNoble);
         Assert.Equal(TileOwner.Player, newState.Board.GetTile(pos).Owner);

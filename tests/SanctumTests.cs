@@ -277,7 +277,7 @@ public class SanctumTests
         newTiles[innerIdx] = newTiles[innerIdx].WithSpecial(SpecialTileType.ExtraDirty);
         state = state with { Board = state.Board with { Tiles = newTiles } };
 
-        var newState = CardEffectSystem.ExecuteSweep(state, new[] { new Position(1, 1) }, new Random(7));
+        var newState = CardEffectSystem.ExecuteSweep(state, new[] { new Position(1, 1) }, new Random(7), CardDefinitions.Sweep);
 
         // Inner tile still dirty (Sweep skipped it because it's unreachable)
         Assert.True(newState.Board.GetTile(new Position(1, 2)).IsDirty);

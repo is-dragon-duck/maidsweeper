@@ -511,10 +511,10 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 
 | Card | Alpha File | Enhanced Effect | Status |
 |---|---|---|---|
-| Breathe | `options.ts` | Draws **5** cards (vs 3) | □ |
-| Lock In | `monster.ts` | Draws **4** cards (vs 2) | □ |
-| Sweep | `sweep.ts` | Area range **3** (7×7, vs range 2 / 5×5) | □ |
-| Pose | `donut.ts` | Spawns **2** courtiers (vs 1) | □ (introduced in M44; enhanced here) |
+| Breathe | `options.ts` | Draws **5** cards (vs 3) | ✓ |
+| Lock In | `monster.ts` | Draws **4** cards (vs 2) | ✓ |
+| Sweep | `sweep.ts` | Area range **3** (7×7, vs range 2 / 5×5) | ✓ |
+| Pose | `donut.ts` | Spawns **2** courtiers (vs 1) | ✓ |
 | Twirl | `twirl.ts` | Gains **5** copper (vs 3) | ✓ |
 | Brat | `brat.ts` | Gains **+2** copper (vs +0) | ✓ |
 | Ramble | `ramble.ts` | Adds **4** distractions (vs 2) | ✓ |
@@ -531,7 +531,10 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - ~6 verification tests for the ✓ cards if not already present (Twirl, Brat, Ramble, Read, Hydrate, Adopt)
 - Spot-check: enhanced description text matches actual behavior on each card
 
-**Status**: Not Started
+**Status**: Complete (831 tests; 25 new in EnhancedNumericalBumpTests).
+- `ExecuteBreathe/ExecuteLockIn/ExecuteSweep/ExecutePose` now take a `Card` so they can branch on `card.Enhanced`. Both PlayCard and ExecuteEffect dispatches thread the card through.
+- Pose enhanced spawns up to 2 courtiers, recomputing candidates between spawns (handles small boards where only one spot is eligible).
+- Card descriptions updated for Sweep / Breathe / LockIn / Pose so the offering UI surfaces the enhanced behavior.
 
 ---
 

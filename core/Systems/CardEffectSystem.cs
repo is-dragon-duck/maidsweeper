@@ -45,10 +45,10 @@ public static class CardEffectSystem
                 CardEffectType.Tingle => ExecuteTingle(state, rng, card),
                 CardEffectType.Twirl => ExecuteTwirl(state, card),
                 CardEffectType.Brush => ExecuteBrush(state, targets, rng),
-                CardEffectType.Sweep => ExecuteSweep(state, targets, rng),
+                CardEffectType.Sweep => ExecuteSweep(state, targets, rng, card),
                 CardEffectType.Caffeinate => ExecuteCaffeinate(state),
-                CardEffectType.Breathe => ExecuteBreathe(state, rng),
-                CardEffectType.LockIn => ExecuteLockIn(state, rng),
+                CardEffectType.Breathe => ExecuteBreathe(state, rng, card),
+                CardEffectType.LockIn => ExecuteLockIn(state, rng, card),
                 CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
                 CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
                 CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
@@ -217,10 +217,10 @@ public static class CardEffectSystem
             CardEffectType.Tingle => ExecuteTingle(state, rng, card),
             CardEffectType.Twirl => ExecuteTwirl(state, card),
             CardEffectType.Brush => ExecuteBrush(state, targets, rng),
-            CardEffectType.Sweep => ExecuteSweep(state, targets, rng),
+            CardEffectType.Sweep => ExecuteSweep(state, targets, rng, card),
             CardEffectType.Caffeinate => ExecuteCaffeinate(state),
-            CardEffectType.Breathe => ExecuteBreathe(state, rng),
-            CardEffectType.LockIn => ExecuteLockIn(state, rng),
+            CardEffectType.Breathe => ExecuteBreathe(state, rng, card),
+            CardEffectType.LockIn => ExecuteLockIn(state, rng, card),
             CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
             CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
             CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
@@ -455,22 +455,29 @@ public static class CardEffectSystem
     /// </summary>
     public static GameState ExecutePose(GameState state, Card card, Random rng)
     {
-        var candidates = state.Board.Tiles
-            .Where(t => state.Board.IsUsablePosition(t.Position)
-                        && !t.IsRevealed && !t.IsDestroyed
-                        && t.Owner == TileOwner.Player
-                        && !t.IsCourtier)
-            .ToList();
-        if (candidates.Count == 0) return state;
+        var spawnCount = card.Enhanced ? 2 : 1;
+        for (var i = 0; i < spawnCount; i++)
+        {
+            // Recompute candidates between spawns so the second courtier doesn't
+            // pick the tile the first one just landed on.
+            var candidates = state.Board.Tiles
+                .Where(t => state.Board.IsUsablePosition(t.Position)
+                            && !t.IsRevealed && !t.IsDestroyed
+                            && t.Owner == TileOwner.Player
+                            && !t.IsCourtier)
+                .ToList();
+            if (candidates.Count == 0) break;
 
-        var pick = candidates[rng.Next(candidates.Count)];
-        var moveTarget = BoardSystem.SelectCourtierTarget(state.Board, pick.Position, rng);
-        var spawned = pick
-            .WithSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = moveTarget };
+            var pick = candidates[rng.Next(candidates.Count)];
+            var moveTarget = BoardSystem.SelectCourtierTarget(state.Board, pick.Position, rng);
+            var spawned = pick
+                .WithSpecial(SpecialTileType.Courtier) with { CourtierMoveTarget = moveTarget };
 
-        var newTiles = state.Board.Tiles.ToList();
-        newTiles[state.Board.TileIndex(pick.Position)] = spawned;
-        return state with { Board = state.Board with { Tiles = newTiles } };
+            var newTiles = state.Board.Tiles.ToList();
+            newTiles[state.Board.TileIndex(pick.Position)] = spawned;
+            state = state with { Board = state.Board with { Tiles = newTiles } };
+        }
+        return state;
     }
 
     /// <summary>
@@ -702,16 +709,17 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Sweep: Target 1 tile (center of 5x5). Remove ExtraDirty from all tiles in area;
-    /// also clean (move) any courtiers in the area.
+    /// Sweep: Target 1 tile (center of 5×5; 7×7 when Enhanced). Remove ExtraDirty
+    /// from all tiles in area; also clean (move) any courtiers in the area.
     /// </summary>
-    public static GameState ExecuteSweep(GameState state, Position[]? targets, Random rng)
+    public static GameState ExecuteSweep(GameState state, Position[]? targets, Random rng, Card card)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Sweep requires exactly 1 target tile");
 
         var center = targets[0];
-        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 2);
+        var radius = card.Enhanced ? 3 : 2;
+        var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, radius);
 
         // Clean (move) courtiers first; CleanCourtier mutates the board.
         var courtierPositions = tilesInArea
@@ -728,7 +736,7 @@ public static class CardEffectSystem
         // Then clear ExtraDirty and LoungingNoble in the area
         var newTiles = state.Board.Tiles.ToList();
         var changed = false;
-        foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 2))
+        foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, radius))
         {
             if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
             var idx = state.Board.TileIndex(tile.Position);
@@ -760,19 +768,21 @@ public static class CardEffectSystem
     }
 
     /// <summary>
-    /// Breathe: Draw 3 cards.
+    /// Breathe: Draw 3 cards (5 when Enhanced).
     /// </summary>
-    public static GameState ExecuteBreathe(GameState state, Random rng)
+    public static GameState ExecuteBreathe(GameState state, Random rng, Card card)
     {
-        return DeckSystem.DrawCards(state, 3, rng);
+        var drawCount = card.Enhanced ? 5 : 3;
+        return DeckSystem.DrawCards(state, drawCount, rng);
     }
 
     /// <summary>
-    /// Lock In: Draw 2 cards.
+    /// Lock In: Draw 2 cards (4 when Enhanced).
     /// </summary>
-    public static GameState ExecuteLockIn(GameState state, Random rng)
+    public static GameState ExecuteLockIn(GameState state, Random rng, Card card)
     {
-        return DeckSystem.DrawCards(state, 2, rng);
+        var drawCount = card.Enhanced ? 4 : 2;
+        return DeckSystem.DrawCards(state, drawCount, rng);
     }
 
     /// <summary>

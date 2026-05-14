@@ -144,7 +144,7 @@ public class MopAndEspressoTests
         };
         var handBefore = state.Hand.Count; // 1
 
-        var newState = CardEffectSystem.ExecuteSweep(state, new[] { new Position(1, 1) }, new Random(7));
+        var newState = CardEffectSystem.ExecuteSweep(state, new[] { new Position(1, 1) }, new Random(7), sweep);
 
         // 2 courtiers cleaned → 2 cards drawn → hand size before card-removal is 1 + 2 = 3
         // (Sweep card itself is still in hand because Execute* doesn't remove it)

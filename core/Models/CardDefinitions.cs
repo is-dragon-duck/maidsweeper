@@ -66,7 +66,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Sweep",
-        Description = "Target a 5x5 area. Remove dirt from all tiles.",
+        Description = "Target a 5x5 area. Remove dirt from all tiles. Enhanced: 7x7 area.",
         Cost = 1,
         EffectType = CardEffectType.Sweep
     };
@@ -85,7 +85,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Breathe",
-        Description = "Draw 3 cards.",
+        Description = "Draw 3 cards. Enhanced: draw 5.",
         Cost = 1,
         EffectType = CardEffectType.Breathe
     };
@@ -94,7 +94,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Lock In",
-        Description = "Draw 2 cards.",
+        Description = "Draw 2 cards. Enhanced: draw 4.",
         Cost = 0,
         Exhaust = true,
         EffectType = CardEffectType.LockIn
@@ -314,7 +314,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Pose",
-        Description = "Spawn a courtier on a random unrevealed player tile.",
+        Description = "Spawn a courtier on a random unrevealed player tile. Enhanced: spawns 2.",
         Cost = 1,
         EffectType = CardEffectType.Pose
     };

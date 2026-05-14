@@ -610,7 +610,7 @@ public class CardEffectTests
         var dirtyTile = board.Tiles.First(t => t.IsDirty);
 
         // Use Sweep centered on dirty tile
-        var newState = CardEffectSystem.ExecuteSweep(state, [dirtyTile.Position], new Random(0));
+        var newState = CardEffectSystem.ExecuteSweep(state, [dirtyTile.Position], new Random(0), CardDefinitions.Sweep);
 
         var tile = newState.Board.GetTile(dirtyTile.Position);
         Assert.False(tile.IsDirty);
@@ -623,7 +623,7 @@ public class CardEffectTests
         var center = new Position(2, 3);
 
         // No dirty tiles on Level 1 — Sweep should return same state
-        var newState = CardEffectSystem.ExecuteSweep(state, [center], new Random(0));
+        var newState = CardEffectSystem.ExecuteSweep(state, [center], new Random(0), CardDefinitions.Sweep);
         Assert.Same(state, newState);
     }
 
@@ -663,7 +663,7 @@ public class CardEffectTests
             CardDefinitions.Spritz with { Id = $"extra_{i}" }).ToList();
         state = state with { DrawPile = draw };
 
-        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42));
+        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42), CardDefinitions.Breathe);
 
         Assert.Equal(initialHandCount + 3, newState.Hand.Count);
     }
@@ -678,7 +678,7 @@ public class CardEffectTests
         };
         var initialHand = state.Hand.Count;
 
-        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42));
+        var newState = CardEffectSystem.ExecuteBreathe(state, new Random(42), CardDefinitions.Breathe);
 
         // Only 1 card available, should draw 1
         Assert.Equal(initialHand + 1, newState.Hand.Count);
@@ -695,7 +695,7 @@ public class CardEffectTests
         state = state with { DrawPile = draw };
         var initialHandCount = state.Hand.Count;
 
-        var newState = CardEffectSystem.ExecuteLockIn(state, new Random(42));
+        var newState = CardEffectSystem.ExecuteLockIn(state, new Random(42), CardDefinitions.LockIn);
 
         Assert.Equal(initialHandCount + 2, newState.Hand.Count);
     }
