@@ -35,6 +35,11 @@ public static class CardEffectSystem
             state = ExecuteGlaze(state, card);
             shouldExhaust = !card.Enhanced; // Base exhausts, enhanced doesn't
         }
+        else if (card.EffectType == CardEffectType.Caffeinate)
+        {
+            state = ExecuteCaffeinate(state);
+            shouldExhaust = !card.Enhanced; // Base exhausts, enhanced doesn't
+        }
         else
         {
             state = card.EffectType switch
@@ -44,12 +49,11 @@ public static class CardEffectSystem
                 CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
                 CardEffectType.Tingle => ExecuteTingle(state, rng, card),
                 CardEffectType.Twirl => ExecuteTwirl(state, card),
-                CardEffectType.Brush => ExecuteBrush(state, targets, rng),
+                CardEffectType.Brush => ExecuteBrush(state, targets, rng, card),
                 CardEffectType.Sweep => ExecuteSweep(state, targets, rng, card),
-                CardEffectType.Caffeinate => ExecuteCaffeinate(state),
                 CardEffectType.Breathe => ExecuteBreathe(state, rng, card),
                 CardEffectType.LockIn => ExecuteLockIn(state, rng, card),
-                CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
+                CardEffectType.Rendezvous => ExecuteRendezvous(state, rng, card, targets),
                 CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
                 CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
                 CardEffectType.Explode => ExecuteExplode(state, targets, card),
@@ -64,7 +68,7 @@ public static class CardEffectSystem
                 CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
                 CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
                 CardEffectType.Gaze => ExecuteGaze(state, targets, card),
-                CardEffectType.Fetch => ExecuteFetch(state, targets, card),
+                CardEffectType.Fetch => ExecuteFetch(state, targets, card, rng),
                 CardEffectType.Pose => ExecutePose(state, card, rng),
                 CardEffectType.Taunt => ExecuteTaunt(state, targets, card),
                 CardEffectType.Mask => throw new InvalidOperationException("Use PlayMaskedCard for Mask"),
@@ -216,12 +220,12 @@ public static class CardEffectSystem
             CardEffectType.Scurry => ExecuteScurry(state, targets, rng, card),
             CardEffectType.Tingle => ExecuteTingle(state, rng, card),
             CardEffectType.Twirl => ExecuteTwirl(state, card),
-            CardEffectType.Brush => ExecuteBrush(state, targets, rng),
+            CardEffectType.Brush => ExecuteBrush(state, targets, rng, card),
             CardEffectType.Sweep => ExecuteSweep(state, targets, rng, card),
             CardEffectType.Caffeinate => ExecuteCaffeinate(state),
             CardEffectType.Breathe => ExecuteBreathe(state, rng, card),
             CardEffectType.LockIn => ExecuteLockIn(state, rng, card),
-            CardEffectType.Rendezvous => ExecuteRendezvous(state, rng),
+            CardEffectType.Rendezvous => ExecuteRendezvous(state, rng, card, targets),
             CardEffectType.Argue => ExecuteArgue(state, targets, rng, card),
             CardEffectType.Eavesdrop => ExecuteEavesdrop(state, targets, card),
             CardEffectType.Explode => ExecuteExplode(state, targets, card),
@@ -236,7 +240,7 @@ public static class CardEffectSystem
             CardEffectType.RecallVague => ExecuteRecallVague(state, rng, card),
             CardEffectType.RecallSarcastic => ExecuteRecallSarcastic(state, rng, card),
             CardEffectType.Gaze => ExecuteGaze(state, targets, card),
-            CardEffectType.Fetch => ExecuteFetch(state, targets, card),
+            CardEffectType.Fetch => ExecuteFetch(state, targets, card, rng),
             CardEffectType.Pose => ExecutePose(state, card, rng),
             CardEffectType.Taunt => ExecuteTaunt(state, targets, card),
             _ => throw new ArgumentException($"Unknown card effect type: {card.EffectType}")
@@ -261,7 +265,41 @@ public static class CardEffectSystem
         if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, pos))
             throw new ArgumentException("Cannot Spritz an unreachable inner tile");
 
-        // Spritz cleans courtiers (moves them) before annotating
+        state = ScoutTile(state, pos, card.Enhanced, rng);
+
+        // Enhanced also scouts a random adjacent unrevealed tile (clean + annotate;
+        // defuse if lounging-noble). Always defuses on the secondary target too.
+        if (card.Enhanced)
+        {
+            var adjacent = BoardSystem.GetNeighbors(state.Board, pos)
+                .Where(p => state.Board.IsUsablePosition(p))
+                .Where(p =>
+                {
+                    var t = state.Board.GetTile(p);
+                    if (t.IsRevealed || t.IsDestroyed) return false;
+                    if (t.IsInner && !BoardSystem.CanReachInnerTile(state.Board, p)) return false;
+                    return true;
+                })
+                .ToList();
+            if (adjacent.Count > 0)
+            {
+                var pick = adjacent[rng.Next(adjacent.Count)];
+                state = ScoutTile(state, pick, enhanced: true, rng);
+            }
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Spritz's per-tile pass: clean courtier, clean extra-dirty, optionally
+    /// defuse a lounging-noble overlay (enhanced only), then annotate
+    /// safe/dangerous.
+    /// </summary>
+    private static GameState ScoutTile(GameState state, Position pos, bool enhanced, Random rng)
+    {
+        var tile = state.Board.GetTile(pos);
+
         if (tile.IsCourtier)
         {
             state = state with { Board = BoardSystem.CleanCourtier(state.Board, pos, rng) };
@@ -269,13 +307,28 @@ public static class CardEffectSystem
             tile = state.Board.GetTile(pos);
         }
 
-        // Spritz also cleans ExtraDirty
         if (tile.IsDirty)
         {
             var cleanedTile = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
             var newTiles = state.Board.Tiles.ToList();
             newTiles[state.Board.TileIndex(pos)] = cleanedTile;
             state = state with { Board = state.Board with { Tiles = newTiles } };
+            tile = state.Board.GetTile(pos);
+        }
+
+        // Enhanced Spritz always defuses the lounging-noble overlay (alpha awards
+        // 3 copper). Base Spritz does not touch lounging-noble overlays.
+        if (enhanced && tile.IsLoungingNoble)
+        {
+            var defused = tile.WithoutSpecial(SpecialTileType.LoungingNoble);
+            var newTiles = state.Board.Tiles.ToList();
+            newTiles[state.Board.TileIndex(pos)] = defused;
+            state = state with
+            {
+                Board = state.Board with { Tiles = newTiles },
+                Copper = state.Copper + 3 * EquipmentSystem.CopperMultiplier(state)
+            };
+            tile = state.Board.GetTile(pos);
         }
 
         var isSafe = tile.Owner == TileOwner.Player || tile.Owner == TileOwner.Neutral;
@@ -362,31 +415,62 @@ public static class CardEffectSystem
         if (card.Direction == null)
             throw new ArgumentException("Gaze card must have a Direction");
 
-        var checkedPositions = ScanLine(state.Board, targets[0], card.Direction.Value);
+        var rawScan = ScanLine(state.Board, targets[0], card.Direction.Value);
 
-        Position? foundRival = null;
-        foreach (var pos in checkedPositions)
+        // Base: stop at first rival (truncate after it). Enhanced: track both
+        // first rival and first noble; stop only when both are found.
+        int foundRivalIdx = -1;
+        int foundNobleIdx = -1;
+        var checkedPositions = new List<Position>();
+        for (var i = 0; i < rawScan.Count; i++)
         {
-            if (state.Board.GetTile(pos).Owner == TileOwner.Rival)
+            checkedPositions.Add(rawScan[i]);
+            var owner = state.Board.GetTile(rawScan[i]).Owner;
+            if (foundRivalIdx < 0 && owner == TileOwner.Rival)
             {
-                foundRival = pos;
-                break;
+                foundRivalIdx = i;
+                if (!card.Enhanced) break;
             }
+            if (card.Enhanced && foundNobleIdx < 0 && owner == TileOwner.Noble)
+            {
+                foundNobleIdx = i;
+            }
+            if (card.Enhanced && foundRivalIdx >= 0 && foundNobleIdx >= 0) break;
         }
 
-        // Annotate found rival
-        if (foundRival != null)
+        if (foundRivalIdx >= 0)
         {
-            state = AnnotationSystem.AddOwnerSubset(state, foundRival.Value,
+            state = AnnotationSystem.AddOwnerSubset(state, checkedPositions[foundRivalIdx],
                 new HashSet<TileOwner> { TileOwner.Rival });
         }
-
-        // Annotate other checked tiles as "not rival"
-        var notRival = new HashSet<TileOwner> { TileOwner.Player, TileOwner.Neutral, TileOwner.Noble };
-        foreach (var pos in checkedPositions)
+        if (foundNobleIdx >= 0)
         {
-            if (foundRival.HasValue && pos == foundRival.Value) continue;
-            state = AnnotationSystem.AddOwnerSubset(state, pos, notRival);
+            state = AnnotationSystem.AddOwnerSubset(state, checkedPositions[foundNobleIdx],
+                new HashSet<TileOwner> { TileOwner.Noble });
+        }
+
+        // For each other checked tile, narrow the possibilities. Base: definitely
+        // not rival. Enhanced: not rival OR not noble depending on position.
+        for (var i = 0; i < checkedPositions.Count; i++)
+        {
+            if (i == foundRivalIdx || i == foundNobleIdx) continue;
+
+            var possible = new HashSet<TileOwner> { TileOwner.Player, TileOwner.Neutral };
+
+            if (!card.Enhanced)
+            {
+                // Base doesn't scan for nobles, so any not-yet-found tile can still be a noble.
+                possible.Add(TileOwner.Noble);
+            }
+            else
+            {
+                // Enhanced: only tiles AFTER finding the first rival could be another rival;
+                // only tiles AFTER finding the first noble could be another noble.
+                if (foundRivalIdx >= 0 && i > foundRivalIdx) possible.Add(TileOwner.Rival);
+                if (foundNobleIdx >= 0 && i > foundNobleIdx) possible.Add(TileOwner.Noble);
+            }
+
+            state = AnnotationSystem.AddOwnerSubset(state, checkedPositions[i], possible);
         }
 
         return state;
@@ -397,7 +481,7 @@ public static class CardEffectSystem
     /// tiles. Determine the most-common owner type (tiebreak: Player > Neutral > Rival > Noble).
     /// Reveal all checked tiles of that owner. Annotate the rest as "anything except majority".
     /// </summary>
-    public static GameState ExecuteFetch(GameState state, Position[]? targets, Card card)
+    public static GameState ExecuteFetch(GameState state, Position[]? targets, Card card, Random rng)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Fetch requires exactly 1 target tile");
@@ -405,7 +489,12 @@ public static class CardEffectSystem
             throw new ArgumentException("Fetch card must have a Direction");
 
         var checkedPositions = ScanLine(state.Board, targets[0], card.Direction.Value);
-        if (checkedPositions.Count == 0) return state;
+        if (checkedPositions.Count == 0)
+        {
+            // Even when the line has nothing, enhanced still draws a card.
+            if (card.Enhanced) state = DeckSystem.DrawCards(state, 1, rng);
+            return state;
+        }
 
         // Tally owner counts
         var counts = new Dictionary<TileOwner, int>
@@ -441,6 +530,10 @@ public static class CardEffectSystem
             state = AnnotationSystem.AddOwnerSubset(state, pos, notMajority);
         }
 
+        if (card.Enhanced)
+        {
+            state = DeckSystem.DrawCards(state, 1, rng);
+        }
         return state;
     }
 
@@ -489,6 +582,13 @@ public static class CardEffectSystem
     {
         if (targets == null || targets.Length == 0)
             throw new ArgumentException("Taunt requires at least 1 target tile");
+
+        // Alpha: enhanced expects 3 tiles (requiring 2 reveals), base expects 4
+        // (requiring 3). Required-reveals = targets.Length - 1 captures both.
+        var expectedTargets = card.Enhanced ? 3 : 4;
+        if (targets.Length != expectedTargets)
+            throw new ArgumentException(
+                $"Taunt ({(card.Enhanced ? "enhanced" : "base")}) requires exactly {expectedTargets} target tiles");
 
         var positions = new HashSet<Position>(targets);
         var taunt = new TauntEffect
@@ -648,6 +748,16 @@ public static class CardEffectSystem
         var exactOwner = new HashSet<TileOwner> { target.Owner };
         state = AnnotationSystem.AddOwnerSubset(state, target.Position, exactOwner);
 
+        // Enhanced: also stamp the target with adjacent-player count, like Eavesdrop's
+        // player slot. Helpful because the annotated tile is rival/noble — knowing how
+        // many of YOUR tiles are next to it tells you whether to clear neighbors first.
+        if (card.Enhanced)
+        {
+            var playerAdj = BoardSystem.CalculateAdjacency(state.Board, target.Position, PlayerType.Player);
+            state = AnnotationSystem.AddAdjacencyInfo(state, target.Position,
+                new AdjacencyInfo { PlayerCount = playerAdj });
+        }
+
         // Geode: playing Tingle draws a card.
         if (EquipmentSystem.HasEquipment(state, EquipmentEffectType.Geode))
         {
@@ -669,7 +779,7 @@ public static class CardEffectSystem
     /// Brush: Target 1 tile (center of 3x3). For each unrevealed tile in area,
     /// pick a random non-owner and annotate to exclude it.
     /// </summary>
-    public static GameState ExecuteBrush(GameState state, Position[]? targets, Random rng)
+    public static GameState ExecuteBrush(GameState state, Position[]? targets, Random rng, Card card)
     {
         if (targets == null || targets.Length != 1)
             throw new ArgumentException("Brush requires exactly 1 target tile");
@@ -689,20 +799,26 @@ public static class CardEffectSystem
             state = EquipmentSystem.OnCourtierCleaned(state, rng);
         }
 
-        foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 1))
+        // Enhanced applies the per-tile exclusion twice (each pass picks a fresh
+        // random non-owner, so the resulting subset can shrink by up to 2 owners).
+        var iterations = card.Enhanced ? 2 : 1;
+        for (var i = 0; i < iterations; i++)
         {
-            if (tile.IsRevealed) continue;
-            if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
+            foreach (var tile in BoardSystem.GetTilesInArea(state.Board, center, 1))
+            {
+                if (tile.IsRevealed) continue;
+                if (tile.IsInner && !BoardSystem.CanReachInnerTile(state.Board, tile.Position)) continue;
 
-            // Pick a random owner that ISN'T the tile's actual owner
-            var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
-            if (nonOwners.Count == 0) continue;
+                // Pick a random owner that ISN'T the tile's actual owner
+                var nonOwners = allOwners.Where(o => o != tile.Owner).ToList();
+                if (nonOwners.Count == 0) continue;
 
-            var excludedOwner = nonOwners[rng.Next(nonOwners.Count)];
+                var excludedOwner = nonOwners[rng.Next(nonOwners.Count)];
 
-            // Annotate: all owners EXCEPT the excluded one
-            var subset = new HashSet<TileOwner>(allOwners.Where(o => o != excludedOwner));
-            state = AnnotationSystem.AddOwnerSubset(state, tile.Position, subset);
+                // Annotate: all owners EXCEPT the excluded one
+                var subset = new HashSet<TileOwner>(allOwners.Where(o => o != excludedOwner));
+                state = AnnotationSystem.AddOwnerSubset(state, tile.Position, subset);
+            }
         }
 
         return state;
@@ -787,11 +903,31 @@ public static class CardEffectSystem
 
     /// <summary>
     /// Rendezvous: Reveal a random unrevealed player tile with rival adjacency,
-    /// and a random unrevealed rival tile with player adjacency.
+    /// and a random unrevealed rival tile with player adjacency. Enhanced: the
+    /// player picks a target tile, and the closest player/rival tiles (Manhattan)
+    /// are revealed instead of random. All unrevealed tiles strictly closer to
+    /// the target are annotated "not (the type just revealed)".
     /// </summary>
-    public static GameState ExecuteRendezvous(GameState state, Random rng)
+    public static GameState ExecuteRendezvous(GameState state, Random rng, Card card, Position[]? targets = null)
     {
         var board = state.Board;
+        Position? targetForEnhanced = null;
+        if (card.Enhanced)
+        {
+            if (targets == null || targets.Length != 1)
+                throw new ArgumentException("Enhanced Rendezvous requires exactly 1 target tile");
+            targetForEnhanced = targets[0];
+        }
+
+        int Distance(Position a, Position b) => Math.Abs(a.Row - b.Row) + Math.Abs(a.Col - b.Col);
+
+        Tile? PickClosest(List<Tile> pool, Position target)
+        {
+            if (pool.Count == 0) return null;
+            var minDist = pool.Min(t => Distance(t.Position, target));
+            var closest = pool.Where(t => Distance(t.Position, target) == minDist).ToList();
+            return closest[rng.Next(closest.Count)];
+        }
 
         // Find unrevealed player tiles
         var playerTiles = board.Tiles
@@ -803,10 +939,15 @@ public static class CardEffectSystem
             .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival)
             .ToList();
 
-        // Reveal a random player tile with RIVAL adjacency
+        Position? revealedPlayerPos = null;
+        Position? revealedRivalPos = null;
+
+        // Reveal a player tile with RIVAL adjacency
         if (playerTiles.Count > 0)
         {
-            var target = playerTiles[rng.Next(playerTiles.Count)];
+            var target = targetForEnhanced is { } t
+                ? PickClosest(playerTiles, t)!
+                : playerTiles[rng.Next(playerTiles.Count)];
             var rivalAdj = BoardSystem.CalculateAdjacency(board, target.Position, PlayerType.Rival);
             var newTiles = board.Tiles.ToList();
             newTiles[board.TileIndex(target.Position)] = target with
@@ -816,9 +957,10 @@ public static class CardEffectSystem
                 AdjacencyCount = rivalAdj
             };
             board = board with { Tiles = newTiles };
+            revealedPlayerPos = target.Position;
         }
 
-        // Reveal a random rival tile with PLAYER adjacency
+        // Reveal a rival tile with PLAYER adjacency
         // Re-query because the board changed
         rivalTiles = board.Tiles
             .Where(t => board.IsUsablePosition(t.Position) && !t.IsRevealed && t.Owner == TileOwner.Rival)
@@ -826,7 +968,9 @@ public static class CardEffectSystem
 
         if (rivalTiles.Count > 0)
         {
-            var target = rivalTiles[rng.Next(rivalTiles.Count)];
+            var target = targetForEnhanced is { } t
+                ? PickClosest(rivalTiles, t)!
+                : rivalTiles[rng.Next(rivalTiles.Count)];
             var playerAdj = BoardSystem.CalculateAdjacency(board, target.Position, PlayerType.Player);
             var newTiles = board.Tiles.ToList();
             newTiles[board.TileIndex(target.Position)] = target with
@@ -836,9 +980,44 @@ public static class CardEffectSystem
                 AdjacencyCount = playerAdj
             };
             board = board with { Tiles = newTiles };
+            revealedRivalPos = target.Position;
         }
 
-        return state with { Board = board };
+        state = state with { Board = board };
+
+        // Enhanced: annotate all unrevealed tiles strictly closer to the target
+        // than the revealed-of-that-type tile as "not (that type)".
+        if (targetForEnhanced is { } targetPos)
+        {
+            if (revealedPlayerPos is { } pp)
+            {
+                var revealedDist = Distance(pp, targetPos);
+                var notPlayer = new HashSet<TileOwner>
+                    { TileOwner.Rival, TileOwner.Neutral, TileOwner.Noble };
+                foreach (var bt in state.Board.Tiles)
+                {
+                    if (!state.Board.IsUsablePosition(bt.Position)) continue;
+                    if (bt.IsRevealed) continue;
+                    if (Distance(bt.Position, targetPos) >= revealedDist) continue;
+                    state = AnnotationSystem.AddOwnerSubset(state, bt.Position, notPlayer);
+                }
+            }
+            if (revealedRivalPos is { } rp)
+            {
+                var revealedDist = Distance(rp, targetPos);
+                var notRival = new HashSet<TileOwner>
+                    { TileOwner.Player, TileOwner.Neutral, TileOwner.Noble };
+                foreach (var bt in state.Board.Tiles)
+                {
+                    if (!state.Board.IsUsablePosition(bt.Position)) continue;
+                    if (bt.IsRevealed) continue;
+                    if (Distance(bt.Position, targetPos) >= revealedDist) continue;
+                    state = AnnotationSystem.AddOwnerSubset(state, bt.Position, notRival);
+                }
+            }
+        }
+
+        return state;
     }
 
     /// <summary>

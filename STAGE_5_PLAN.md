@@ -545,14 +545,14 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 
 | Card | Alpha File | Enhanced Effect | Status |
 |---|---|---|---|
-| Spritz | `scout.ts` | Always defuses any lounging-noble overlay on target; **also** scouts a random adjacent unrevealed tile (clean + annotate; defuse if lounging-noble) | □ |
-| Tingle | `report.ts` | Adds **player adjacency info** to the annotated tile (in addition to the rival/noble owner annotation) | □ |
-| Rendezvous | `tryst.ts` | Player **picks the target** for the player-side reveal (vs random); also adds annotations on revealed tiles | □ |
-| Brush | `brush.ts` | Applies the per-tile exclusion **twice** (2 iterations, each picks a fresh random non-owner) | □ |
-| Caffeinate | `energized.ts` | **Does not exhaust** (vs base which exhausts) | □ |
-| Taunt | `taunt.ts` | Targets **3** tiles (vs 4), requires **2** rival reveals to trigger (vs 3) — easier to satisfy | □ (introduced in M44; enhanced here) |
-| Gaze | `gaze.ts` | Also detects **lounging nobles** in the line; scans further (no early stop after first rival) | □ (introduced in M43; enhanced here) |
-| Fetch | `fetch.ts` | **Draws 1 card** in addition to the reveal | □ (introduced in M43; enhanced here) |
+| Spritz | `scout.ts` | Always defuses any lounging-noble overlay on target; **also** scouts a random adjacent unrevealed tile (clean + annotate; defuse if lounging-noble) | ✓ |
+| Tingle | `report.ts` | Adds **player adjacency info** to the annotated tile (in addition to the rival/noble owner annotation) | ✓ |
+| Rendezvous | `tryst.ts` | Player **picks the target** for the player-side reveal (vs random); also adds annotations on revealed tiles | ✓ |
+| Brush | `brush.ts` | Applies the per-tile exclusion **twice** (2 iterations, each picks a fresh random non-owner) | ✓ |
+| Caffeinate | `energized.ts` | **Does not exhaust** (vs base which exhausts) | ✓ |
+| Taunt | `taunt.ts` | Targets **3** tiles (vs 4), requires **2** rival reveals to trigger (vs 3) — easier to satisfy | ✓ |
+| Gaze | `gaze.ts` | Also detects **nobles** in the line (alpha "mine"); scans further (no early stop after first rival) | ✓ |
+| Fetch | `fetch.ts` | **Draws 1 card** in addition to the reveal | ✓ |
 | Recall (Imperious) | `imperiousInstructions.ts` | Adds owner-subset annotation **excluding nobles** to all affected tiles | ✓ |
 | Recall (Vague) | `vagueInstructions.ts` | More guaranteed-target draws (5 vs 3) — implementation per M28 | ✓ |
 | Recall (Sarcasm) | `sarcasticInstructions.ts` | **Refunds 1 spoon** if any other Recall already played this floor | ✓ |
@@ -578,7 +578,16 @@ Sanctum tiles act as portals between regular tiles and inner-tile clusters. Adja
 - ~12 verification tests for ✓ cards (one per card if not already covered)
 - Decision recorded for — cards (Scurry, Mollify) before implementing or skipping
 
-**Status**: Not Started
+**Status**: Complete (860 tests; 29 new in EnhancedLogicChangeTests).
+- Spritz enhanced: `ScoutTile` helper now runs over the target AND one random adjacent tile. Both passes defuse lounging-noble overlays (+3 copper × Tiara multiplier each) and annotate safe/dangerous.
+- Tingle enhanced: stamps `AdjacencyInfo.PlayerCount` on the annotated tile via `AnnotationSystem.AddAdjacencyInfo`.
+- Brush enhanced: outer `iterations` loop applies the per-tile exclusion twice (each iteration draws a fresh random non-owner — final subset may end up at 2 owners).
+- Caffeinate enhanced: routed through the same shouldExhaust override branch as Glaze.
+- Taunt: validates exact target count (3 enhanced / 4 base). Required-reveals stays at `targets.Length - 1` so 3→2, 4→3 fall out automatically.
+- Gaze enhanced: dual-pointer scan that finds first rival AND first noble, continuing the line until both (or the line ends). Base now correctly truncates `checkedPositions` at the rival so tiles past it don't get a "not rival" annotation.
+- Fetch enhanced: appends `DeckSystem.DrawCards(state, 1, rng)` after the reveal/annotate pass (and on empty-line early-out).
+- Rendezvous enhanced: signature now `ExecuteRendezvous(state, rng, card, targets?)`. Requires 1 target; picks the Manhattan-closest player/rival tiles (random tiebreak) and annotates all unrevealed tiles strictly closer to the target with "not (revealed type)".
+- All ✓ rows from earlier milestones (Recall Imperious/Vague/Sarcastic, Argue, Eavesdrop, Peek, Explode, Deliver, Accept Help, Glaze, Mask, Nap, Scurry) verified by existing tests; no behavioral changes needed in M53.
 
 ---
 

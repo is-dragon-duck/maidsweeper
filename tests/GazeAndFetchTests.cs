@@ -244,7 +244,7 @@ public class GazeAndFetchTests
             EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
         };
 
-        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card);
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
 
         // Cols 0, 1, 3 are Player → all revealed
         Assert.True(newState.Board.GetTile(new Position(0, 0)).IsRevealed);
@@ -269,7 +269,7 @@ public class GazeAndFetchTests
             EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
         };
 
-        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card);
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
 
         Assert.True(newState.Board.GetTile(new Position(0, 0)).IsRevealed);
         Assert.False(newState.Board.GetTile(new Position(0, 1)).IsRevealed);
@@ -290,7 +290,7 @@ public class GazeAndFetchTests
             EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
         };
 
-        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card);
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
 
         var ann = newState.Board.GetTile(new Position(0, 2)).Annotations.OwnerSubset;
         Assert.NotNull(ann);
@@ -326,7 +326,7 @@ public class GazeAndFetchTests
             Id = "f1", Name = $"Fetch", Cost = 1,
             EffectType = CardEffectType.Fetch, Direction = direction
         };
-        var newState = CardEffectSystem.ExecuteFetch(state, new[] { origin }, card);
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { origin }, card, new Random(7));
 
         // All 3 player tiles revealed
         var revealed = newState.Board.Tiles.Count(t => t.IsRevealed);
@@ -353,7 +353,7 @@ public class GazeAndFetchTests
             EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
         };
 
-        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card);
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
 
         Assert.True(newState.Board.GetTile(new Position(0, 0)).IsRevealed);
         Assert.False(newState.Board.GetTile(new Position(0, 2)).IsRevealed);

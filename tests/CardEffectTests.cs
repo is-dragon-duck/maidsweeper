@@ -540,7 +540,7 @@ public class CardEffectTests
         var rng = new Random(42);
 
         var center = new Position(2, 3);
-        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng);
+        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng, CardDefinitions.Brush);
 
         // All unrevealed tiles in 3x3 should have owner subset annotation
         var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
@@ -560,7 +560,7 @@ public class CardEffectTests
         var rng = new Random(42);
 
         var center = new Position(2, 3);
-        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng);
+        var newState = CardEffectSystem.ExecuteBrush(state, [center], rng, CardDefinitions.Brush);
 
         // Each annotated tile should have subset of size 3 (4 owners - 1 excluded)
         var tilesInArea = BoardSystem.GetTilesInArea(state.Board, center, 1);
@@ -586,7 +586,7 @@ public class CardEffectTests
 
         // Corner position — should only annotate 4 tiles
         var corner = new Position(0, 0);
-        var newState = CardEffectSystem.ExecuteBrush(state, [corner], rng);
+        var newState = CardEffectSystem.ExecuteBrush(state, [corner], rng, CardDefinitions.Brush);
 
         var tilesInArea = BoardSystem.GetTilesInArea(state.Board, corner, 1);
         Assert.Equal(4, tilesInArea.Count);
@@ -730,7 +730,7 @@ public class CardEffectTests
         var playerBefore = state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
         var rivalBefore = state.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Rival);
 
-        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng, CardDefinitions.Rendezvous);
 
         var playerAfter = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);
         var rivalAfter = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Rival);
@@ -745,7 +745,7 @@ public class CardEffectTests
         var state = CreateLevel1Game();
         var rng = new Random(42);
 
-        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng, CardDefinitions.Rendezvous);
 
         // The newly revealed player tile should have rival adjacency and rival perspective
         var revealedPlayer = newState.Board.Tiles
@@ -780,7 +780,7 @@ public class CardEffectTests
         };
 
         var rng = new Random(42);
-        var newState = CardEffectSystem.ExecuteRendezvous(state, rng);
+        var newState = CardEffectSystem.ExecuteRendezvous(state, rng, CardDefinitions.Rendezvous);
 
         // Player tile revealed, but no rival tile available
         var playerRevealed = newState.Board.Tiles.Count(t => t.IsRevealed && t.Owner == TileOwner.Player);

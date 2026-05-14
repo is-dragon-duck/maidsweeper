@@ -18,7 +18,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Spritz",
-        Description = "Target a tile. Learn if it's safe or dangerous.",
+        Description = "Target a tile. Learn if it's safe or dangerous. Enhanced: also defuses lounging nobles and scouts a random adjacent tile.",
         Cost = 1,
         EffectType = CardEffectType.Spritz
     };
@@ -27,7 +27,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Tingle",
-        Description = "Sense a random rival or noble tile.",
+        Description = "Sense a random rival or noble tile. Enhanced: also shows the tile's player-neighbor count.",
         Cost = 1,
         EffectType = CardEffectType.Tingle
     };
@@ -57,7 +57,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Brush",
-        Description = "Target a 3x3 area. For each tile, exclude a random non-owner.",
+        Description = "Target a 3x3 area. For each tile, exclude a random non-owner. Enhanced: applies twice.",
         Cost = 1,
         EffectType = CardEffectType.Brush
     };
@@ -75,7 +75,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Caffeinate",
-        Description = "Gain 2 spoons.",
+        Description = "Gain 2 spoons. Enhanced: does not exhaust.",
         Cost = 1,
         Exhaust = true,
         EffectType = CardEffectType.Caffeinate
@@ -104,7 +104,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Rendezvous",
-        Description = "Reveal a random player tile with rival adjacency and a random rival tile with player adjacency.",
+        Description = "Reveal a random player tile with rival adjacency and a random rival tile with player adjacency. Enhanced: target a tile — the closest player/rival tiles are revealed; closer tiles annotated.",
         Cost = 1,
         EffectType = CardEffectType.Rendezvous
     };
@@ -282,7 +282,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = $"Gaze {arrow}",
-        Description = $"Scan {dir} from a target tile. Annotate the first unrevealed rival; mark the rest as not-rival.",
+        Description = $"Scan {dir} from a target tile. Annotate the first unrevealed rival; mark the rest as not-rival. Enhanced: also finds the first noble; keeps scanning until both are found.",
         Cost = 1,
         EffectType = CardEffectType.Gaze,
         Direction = dir
@@ -292,7 +292,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = $"Fetch {arrow}",
-        Description = $"Scan {dir} from a target tile. Reveal all tiles of the most-common owner type.",
+        Description = $"Scan {dir} from a target tile. Reveal all tiles of the most-common owner type. Enhanced: also draws 1 card.",
         Cost = 1,
         EffectType = CardEffectType.Fetch,
         Direction = dir
@@ -323,7 +323,7 @@ public static class CardDefinitions
     {
         Id = "",
         Name = "Taunt",
-        Description = "Tag 4 tiles. If the rival reveals 3 of them, her turn ends early.",
+        Description = "Tag 4 tiles. If the rival reveals 3 of them, her turn ends early. Enhanced: tag 3 tiles (rival ends turn after 2).",
         Cost = 1,
         EffectType = CardEffectType.Taunt
     };
