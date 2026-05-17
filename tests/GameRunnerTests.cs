@@ -65,6 +65,27 @@ public class GameRunnerTests
     }
 
     [Fact]
+    public void ProcessReveal_NeutralTriggersRivalReveal()
+    {
+        // Mirrors user-reported bug: turn 1, reveal a neutral, expect rival to reveal one tile.
+        var rng = new Random(42);
+        var state = GameRunner.CreateGame(LevelConfigs.Level1, rng);
+
+        var rivalUnrevealedBefore = state.Board.Tiles.Count(t =>
+            !t.IsRevealed && t.Owner == TileOwner.Rival);
+
+        var neutralPos = state.Board.Tiles.First(t => !t.IsRevealed && t.Owner == TileOwner.Neutral).Position;
+        var result = GameRunner.ProcessReveal(state, neutralPos, new Random(99));
+
+        var rivalUnrevealedAfter = result.State.Board.Tiles.Count(t =>
+            !t.IsRevealed && t.Owner == TileOwner.Rival);
+
+        Assert.Equal(rivalUnrevealedBefore - 1, rivalUnrevealedAfter);
+        Assert.Equal(2, result.State.TurnNumber);
+        Assert.Equal(PlayerType.Player, result.State.CurrentPlayer);
+    }
+
+    [Fact]
     public void ProcessReveal_ThrowsOnAlreadyRevealed()
     {
         var rng = new Random(42);

@@ -13,6 +13,9 @@ public partial class CardUI : Control
     [Signal]
     public delegate void CardClickedEventHandler(string cardId);
 
+    [Signal]
+    public delegate void CardRightClickedEventHandler(string cardId);
+
     private static readonly Vector2 CardSize = new(100, 140);
 
     private static readonly Color CardBg = new(0.95f, 0.92f, 0.85f);
@@ -117,8 +120,12 @@ public partial class CardUI : Control
         var nameX = (CardSize.X - nameSize.X) / 2;
         DrawString(font, new Vector2(nameX, 44), _card.Name, fontSize: 12, modulate: textCol);
 
-        // Description (wrapped manually — just truncate for now)
-        var desc = _card.Description;
+        // Description: pulled from human-editable card-text files.
+        // Picks the enhanced variant when the card is Enhanced; falls back to
+        // Card.Description (which is what core-side code authors).
+        var desc = _card.Enhanced
+            ? CardTextLoader.GetEnhanced(_card.Name, _card.Description)
+            : CardTextLoader.GetRegular(_card.Name, _card.Description);
         var descFontSize = 10;
         var lineY = 64f;
         foreach (var line in WrapText(font, desc, descFontSize, CardSize.X - 12))
@@ -147,10 +154,18 @@ public partial class CardUI : Control
 
     public override void _GuiInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+        if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
         {
-            EmitSignal(SignalName.CardClicked, _card.Id);
-            AcceptEvent();
+            if (mouseEvent.ButtonIndex == MouseButton.Left)
+            {
+                EmitSignal(SignalName.CardClicked, _card.Id);
+                AcceptEvent();
+            }
+            else if (mouseEvent.ButtonIndex == MouseButton.Right)
+            {
+                EmitSignal(SignalName.CardRightClicked, _card.Id);
+                AcceptEvent();
+            }
         }
     }
 

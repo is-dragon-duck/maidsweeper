@@ -6,7 +6,8 @@ using Maidsweeper.Core.Models;
 /// RandomAi: weighted random selection by intent points. A tile with 5 points is
 /// 5× more likely to be picked than a tile with 1 point. Zero-point tiles are
 /// never picked. Continues revealing while it keeps hitting rivals (chains until
-/// it reveals a non-rival, which ends the rival's turn).
+/// it reveals a non-rival, which ends the rival's turn). When `RivalNeverNobles`
+/// is set on the level, nobles (regular or lounging) are filtered out of the pool.
 /// </summary>
 public sealed class RandomAi : IRivalAi
 {
@@ -20,11 +21,12 @@ public sealed class RandomAi : IRivalAi
     {
         var picks = new List<Position>();
         var pool = new Dictionary<Position, int>(intentPoints);
+        var rivalNeverNobles = context.LevelConfig?.RivalNeverNobles ?? false;
 
         while (true)
         {
             // Filter to currently-revealable, positive-points tiles
-            DropIneligible(state, pool);
+            DropIneligible(state, pool, rivalNeverNobles);
             if (pool.Count == 0) break;
 
             var pick = WeightedRandom(pool, rng);
@@ -44,9 +46,10 @@ public sealed class RandomAi : IRivalAi
 
     /// <summary>
     /// Drops positions from the pool that are no longer eligible (revealed,
-    /// destroyed, unused, or zero-points).
+    /// destroyed, unused, zero-points, or forbidden nobles when the level sets
+    /// RivalNeverNobles).
     /// </summary>
-    private static void DropIneligible(GameState state, Dictionary<Position, int> pool)
+    private static void DropIneligible(GameState state, Dictionary<Position, int> pool, bool rivalNeverNobles)
     {
         var keys = pool.Keys.ToList();
         foreach (var key in keys)
@@ -54,11 +57,19 @@ public sealed class RandomAi : IRivalAi
             if (pool[key] <= 0
                 || !state.Board.IsUsablePosition(key)
                 || state.Board.GetTile(key).IsRevealed
-                || state.Board.GetTile(key).IsDestroyed)
+                || state.Board.GetTile(key).IsDestroyed
+                || IsForbiddenNoble(state, key, rivalNeverNobles))
             {
                 pool.Remove(key);
             }
         }
+    }
+
+    private static bool IsForbiddenNoble(GameState state, Position pos, bool rivalNeverNobles)
+    {
+        if (!rivalNeverNobles) return false;
+        var tile = state.Board.GetTile(pos);
+        return tile.Owner == TileOwner.Noble || tile.IsLoungingNoble;
     }
 
     /// <summary>

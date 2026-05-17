@@ -307,6 +307,81 @@ public class AiTests
     }
 
     [Fact]
+    public void RandomAi_SkipsNobles_WhenRivalNeverNoblesIsTrue()
+    {
+        // Even with all the weight pointing at a noble, RandomAi must not pick it
+        // when the level sets RivalNeverNobles.
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Noble },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Rival },
+            new() { Position = new Position(0, 2), Owner = TileOwner.Player }
+        };
+        var board = new Board { Width = 3, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 0)] = 99, // noble — would dominate without filter
+            [new Position(0, 1)] = 1
+        };
+        var ctx = new AiContext
+        {
+            LevelConfig = new LevelConfig
+            {
+                Width = 3, Height = 1, PlayerCount = 1, RivalCount = 1, NeutralCount = 0, NobleCount = 1,
+                RivalNeverNobles = true
+            }
+        };
+
+        var ai = new RandomAi();
+        for (var seed = 0; seed < 50; seed++)
+        {
+            var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(seed));
+            Assert.DoesNotContain(new Position(0, 0), picks);
+        }
+    }
+
+    [Fact]
+    public void RandomAi_SkipsLoungingNobles_WhenRivalNeverNoblesIsTrue()
+    {
+        // Lounging-noble overlay counts as a noble for the filter.
+        var tiles = new List<Tile>
+        {
+            new()
+            {
+                Position = new Position(0, 0),
+                Owner = TileOwner.Player,
+                Specials = SpecialTileType.LoungingNoble
+            },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Rival }
+        };
+        var board = new Board { Width = 2, Height = 1, Tiles = tiles };
+        var state = new GameState { Board = board, CurrentLevelId = "test" };
+
+        var intent = new Dictionary<Position, int>
+        {
+            [new Position(0, 0)] = 99,
+            [new Position(0, 1)] = 1
+        };
+        var ctx = new AiContext
+        {
+            LevelConfig = new LevelConfig
+            {
+                Width = 2, Height = 1, PlayerCount = 1, RivalCount = 1, NeutralCount = 0, NobleCount = 0,
+                RivalNeverNobles = true
+            }
+        };
+
+        var ai = new RandomAi();
+        for (var seed = 0; seed < 50; seed++)
+        {
+            var picks = ai.SelectTilesToReveal(state, intent, ctx, new Random(seed));
+            Assert.DoesNotContain(new Position(0, 0), picks);
+        }
+    }
+
+    [Fact]
     public void ConservativeAi_SkipsNobles_WhenRivalNeverNoblesIsTrue()
     {
         // Manual board: 1 noble + 1 rival, no constraints possible (no revealed tiles).

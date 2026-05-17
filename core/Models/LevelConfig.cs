@@ -51,8 +51,8 @@ public record LevelConfig
     public int InitialRivalReveal { get; init; }
     /// <summary>
     /// Maps to the alpha config's `rivalNeverMines`. When true, the rival's AI
-    /// must never reveal a noble (regular or lounging). Read by Conservative
-    /// and Reasoning AIs to filter their candidate pool.
+    /// must never reveal a noble (regular or lounging). Read by Random,
+    /// Conservative, and Reasoning AIs to filter their candidate pool.
     /// </summary>
     public bool RivalNeverNobles { get; init; }
     /// <summary>
@@ -91,6 +91,7 @@ public static class LevelConfigs
         LevelId = "level1",
         Width = 6, Height = 5,
         PlayerCount = 12, RivalCount = 10, NeutralCount = 8, NobleCount = 0,
+        RivalNeverNobles = true,
         UponFinish = new UponFinishConfig { CardReward = true, NextLevelId = "level2" }
     };
 
@@ -103,6 +104,7 @@ public static class LevelConfigs
         LevelId = "level2",
         Width = 6, Height = 5,
         PlayerCount = 10, RivalCount = 9, NeutralCount = 8, NobleCount = 1,
+        RivalNeverNobles = true,
         UnusedLocations = CR((0, 0), (5, 4)),
         SpecialTiles =
         [
@@ -128,6 +130,7 @@ public static class LevelConfigs
         LevelId = "level3",
         Width = 6, Height = 6,
         PlayerCount = 11, RivalCount = 10, NeutralCount = 8, NobleCount = 3,
+        RivalNeverNobles = true,
         UnusedLocations = CR(
             (2, 2), (3, 2),
             (2, 3), (3, 3)),
@@ -152,6 +155,7 @@ public static class LevelConfigs
         LevelId = "level4",
         Width = 9, Height = 9,
         PlayerCount = 14, RivalCount = 12, NeutralCount = 11, NobleCount = 3,
+        RivalNeverNobles = true,
         AdjacencyRule = AdjacencyRule.Manhattan2,
         UnusedLocations = CR(
             (0, 0), (2, 0), (4, 0), (6, 0), (8, 0),

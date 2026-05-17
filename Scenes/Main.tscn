@@ -44,13 +44,13 @@ layout_mode = 2
 size_flags_vertical = 3
 
 [node name="BoardMargin" type="MarginContainer" parent="Layout/TopArea" unique_id=1615879546]
-custom_minimum_size = Vector2(716, 716)
+custom_minimum_size = Vector2(700, 700)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 20
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
 
 [node name="Board" parent="Layout/TopArea/BoardMargin" unique_id=1321378465 instance=ExtResource("2")]
 

@@ -26,11 +26,9 @@ public static class ClueSystem
             .ToList();
         var playerTiles = unrevealed.Where(t => t.Owner == TileOwner.Player).ToList();
 
-        if (playerTiles.Count < 2)
-        {
-            // Not enough player tiles for a meaningful clue
+        // Nothing to point at if there are no unrevealed player tiles.
+        if (playerTiles.Count == 0)
             return [];
-        }
 
         var clueId = Guid.NewGuid().ToString();
 
@@ -165,7 +163,7 @@ public static class ClueSystem
             .ToList();
         var playerTiles = unrevealed.Where(t => t.Owner == TileOwner.Player).ToList();
 
-        if (playerTiles.Count < 2)
+        if (playerTiles.Count == 0)
             return [];
 
         var clueId = Guid.NewGuid().ToString();
@@ -292,7 +290,7 @@ public static class ClueSystem
             .ToList();
         var nonPlayerTiles = unrevealed.Where(t => t.Owner != TileOwner.Player).ToList();
 
-        if (nonPlayerTiles.Count < 2)
+        if (nonPlayerTiles.Count == 0)
             return [];
 
         var clueId = Guid.NewGuid().ToString();

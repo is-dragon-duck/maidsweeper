@@ -218,6 +218,40 @@ public class CardEffectTests
     }
 
     [Fact]
+    public void Instructions_ProducesPipsWithOnlyOneUnrevealedPlayerTile()
+    {
+        // Regression: late-floor scenario where only 1 player tile is left unrevealed.
+        // Previously the algorithm short-circuited at playerTiles.Count < 2 and produced no pips.
+        var state = CreateLevel1Game();
+
+        // Reveal every player tile except one.
+        var playerPositions = state.Board.Tiles
+            .Where(t => t.Owner == TileOwner.Player)
+            .Select(t => t.Position)
+            .ToList();
+        var lastPlayerPos = playerPositions[0];
+        var newTiles = state.Board.Tiles.ToList();
+        foreach (var pos in playerPositions.Skip(1))
+        {
+            var idx = state.Board.TileIndex(pos);
+            newTiles[idx] = newTiles[idx] with
+            {
+                IsRevealed = true,
+                RevealedBy = PlayerType.Player,
+                AdjacencyCount = 0
+            };
+        }
+        state = state with { Board = state.Board with { Tiles = newTiles } };
+
+        var clues = ClueSystem.GenerateImperiousClue(state, new Random(99));
+        Assert.NotEmpty(clues);
+
+        // The remaining player tile should have the most pips.
+        var maxPips = clues.Max(c => c.PipStrength);
+        Assert.Contains(clues, c => c.TilePosition == lastPlayerPos && c.PipStrength == maxPips);
+    }
+
+    [Fact]
     public void Instructions_AllClueResultsShareSameId()
     {
         var state = CreateLevel1Game();
@@ -477,9 +511,33 @@ public class CardEffectTests
     // --- Edge Case Tests ---
 
     [Fact]
-    public void Instructions_FewPlayerTilesReturnsEmpty()
+    public void Instructions_ZeroPlayerTilesReturnsEmpty()
     {
-        // Board with only 1 player tile — not enough for Instructions
+        // Board with no player tiles — nothing to point at.
+        var config = new LevelConfig
+        {
+            Width = 2, Height = 2,
+            PlayerCount = 0, RivalCount = 2, NeutralCount = 2, NobleCount = 0
+        };
+        var board = BoardSystem.CreateBoard(config, new Random(42));
+        var state = new GameState
+        {
+            Board = board,
+            Hand = [CardDefinitions.RecallImperious with { Id = "r1" }],
+            Spoons = 3
+        };
+
+        var rng = new Random(99);
+        var newState = CardEffectSystem.ExecuteInstructions(state, rng, state.Hand[0]);
+
+        var tilesWithClues = newState.Board.Tiles.Count(t => t.Annotations.ClueResults.Count > 0);
+        Assert.Equal(0, tilesWithClues);
+    }
+
+    [Fact]
+    public void Instructions_OnePlayerTileStillProducesClue()
+    {
+        // 1 player tile is enough — the clue should concentrate pips on it.
         var config = new LevelConfig
         {
             Width = 2, Height = 2,
@@ -496,9 +554,8 @@ public class CardEffectTests
         var rng = new Random(99);
         var newState = CardEffectSystem.ExecuteInstructions(state, rng, state.Hand[0]);
 
-        // Should produce no clues (not crash)
         var tilesWithClues = newState.Board.Tiles.Count(t => t.Annotations.ClueResults.Count > 0);
-        Assert.Equal(0, tilesWithClues);
+        Assert.True(tilesWithClues > 0);
     }
 
     [Fact]

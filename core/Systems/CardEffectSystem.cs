@@ -512,10 +512,22 @@ public static class CardEffectSystem
         var majority = safetyOrder.OrderByDescending(o => counts[o]).First();
         if (counts[majority] == 0) return state;
 
-        // Reveal majority-owner tiles
+        // Reveal majority-owner tiles. For ExtraDirty tiles, strip the dirt first so
+        // the subsequent RevealTile call actually reveals (otherwise the player-dirt
+        // interception cleans without revealing and the rest of the line looks "missed").
         foreach (var pos in checkedPositions)
         {
-            if (state.Board.GetTile(pos).Owner != majority) continue;
+            var tile = state.Board.GetTile(pos);
+            if (tile.Owner != majority) continue;
+
+            if (tile.IsDirty)
+            {
+                var cleaned = tile.WithoutSpecial(SpecialTileType.ExtraDirty);
+                var newTiles = state.Board.Tiles.ToList();
+                newTiles[state.Board.TileIndex(pos)] = cleaned;
+                state = state with { Board = state.Board with { Tiles = newTiles } };
+            }
+
             var newBoard = BoardSystem.RevealTile(state.Board, pos, PlayerType.Player);
             state = state with { Board = newBoard };
         }
@@ -526,7 +538,7 @@ public static class CardEffectSystem
         foreach (var pos in checkedPositions)
         {
             var tile = state.Board.GetTile(pos);
-            if (tile.IsRevealed) continue; // already revealed (majority or partial)
+            if (tile.IsRevealed) continue; // already revealed (majority)
             state = AnnotationSystem.AddOwnerSubset(state, pos, notMajority);
         }
 

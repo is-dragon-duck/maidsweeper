@@ -13,6 +13,9 @@ public partial class HandDisplay : HBoxContainer
     [Signal]
     public delegate void CardClickedEventHandler(string cardId);
 
+    [Signal]
+    public delegate void CardRightClickedEventHandler(string cardId);
+
     public void UpdateHand(GameState state)
     {
         // Clear existing cards
@@ -30,6 +33,7 @@ public partial class HandDisplay : HBoxContainer
             var affordable = state.Spoons >= effectiveCost;
             cardUI.Setup(card, affordable, effectiveCost);
             cardUI.CardClicked += OnCardClicked;
+            cardUI.CardRightClicked += OnCardRightClicked;
         }
     }
 
@@ -54,5 +58,10 @@ public partial class HandDisplay : HBoxContainer
     private void OnCardClicked(string cardId)
     {
         EmitSignal(SignalName.CardClicked, cardId);
+    }
+
+    private void OnCardRightClicked(string cardId)
+    {
+        EmitSignal(SignalName.CardRightClicked, cardId);
     }
 }

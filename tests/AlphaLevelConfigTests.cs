@@ -124,22 +124,62 @@ public class AlphaLevelConfigTests
         Assert.Equal(expected, c.InitialRivalReveal);
     }
 
-    // --- RivalNeverNobles (only L5 in our 1-8 range) ---
-
-    [Fact]
-    public void Level5_RivalNeverNobles()
-    {
-        Assert.True(LevelConfigs.Level5.RivalNeverNobles);
-    }
+    // --- RivalNeverNobles ---
+    // Port deviates from alpha: L1-L4 also forbid rival noble reveals so the early
+    // floors can never be lost to AI luck (alpha had this only on L5 in this range).
 
     [Theory]
     [InlineData("level1")] [InlineData("level2")] [InlineData("level3")]
-    [InlineData("level4")] [InlineData("level6")] [InlineData("level7")]
-    [InlineData("level8")]
-    public void OtherLevels_DoNotForbidNobles(string levelId)
+    [InlineData("level4")] [InlineData("level5")]
+    public void PreFirstBossLevels_ForbidNobles(string levelId)
+    {
+        var c = LevelConfigs.GetById(levelId)!;
+        Assert.True(c.RivalNeverNobles,
+            $"{levelId} should set RivalNeverNobles to keep the tutorial-arc rival from accidentally winning the floor");
+    }
+
+    [Theory]
+    [InlineData("level6")] [InlineData("level7")] [InlineData("level8")]
+    public void PostFirstBossLevels_AllowNobles(string levelId)
     {
         var c = LevelConfigs.GetById(levelId)!;
         Assert.False(c.RivalNeverNobles);
+    }
+
+    // --- Campaign structure invariants ---
+    // L5/9/13/17/21 are bosses (RivalNeverNobles=true).
+    // The level before each boss (L4/8/12/16/20) is always a Shop.
+    // L21 is the final boss (no NextLevelId → CampaignVictory).
+
+    [Theory]
+    [InlineData("level5")] [InlineData("level9")] [InlineData("level13")]
+    [InlineData("level17")] [InlineData("level21")]
+    public void BossLevels_ForbidNobles(string levelId)
+    {
+        var c = LevelConfigs.GetById(levelId)!;
+        Assert.True(c.RivalNeverNobles, $"{levelId} is a boss and must set RivalNeverNobles");
+    }
+
+    [Theory]
+    [InlineData("level4", "level5")]
+    [InlineData("level8", "level9")]
+    [InlineData("level12", "level13")]
+    [InlineData("level16", "level17")]
+    [InlineData("level20", "level21")]
+    public void PreBossLevel_IsShop_AndChainsToBoss(string preBossId, string bossId)
+    {
+        var preBoss = LevelConfigs.GetById(preBossId)!;
+        Assert.True(preBoss.UponFinish!.Shop,
+            $"{preBossId} sits before boss {bossId} and must be a Shop level");
+        Assert.Equal(bossId, preBoss.UponFinish!.NextLevelId);
+    }
+
+    [Fact]
+    public void Level21_IsFinalBoss_NoNextLevel()
+    {
+        var c = LevelConfigs.Level21;
+        Assert.Null(c.UponFinish!.NextLevelId);
+        Assert.True(c.RivalNeverNobles);
     }
 
     // --- Reward flow per uponFinish (alpha M33 table) ---

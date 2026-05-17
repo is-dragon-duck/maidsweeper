@@ -276,6 +276,36 @@ public class GazeAndFetchTests
     }
 
     [Fact]
+    public void Fetch_RevealsExtraDirtyMajorityTiles()
+    {
+        // Regression: Fetch was calling RevealTile, which on dirty Player tiles
+        // cleans the dirt instead of revealing. The user observed only the first
+        // (non-dirty) majority tile becoming visible.
+        // Strip: Player, Player(dirty), Player(dirty), Rival.
+        // All 3 Player tiles must be revealed; none should be left dirty-and-unrevealed.
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Player },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Player, Specials = SpecialTileType.ExtraDirty },
+            new() { Position = new Position(0, 2), Owner = TileOwner.Player, Specials = SpecialTileType.ExtraDirty },
+            new() { Position = new Position(0, 3), Owner = TileOwner.Rival }
+        };
+        var state = MakeState(new Board { Width = 4, Height = 1, Tiles = tiles });
+
+        var card = new Card
+        {
+            Id = "f1", Name = "Fetch →", Cost = 1,
+            EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
+        };
+
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
+
+        Assert.True(newState.Board.GetTile(new Position(0, 0)).IsRevealed);
+        Assert.True(newState.Board.GetTile(new Position(0, 1)).IsRevealed);
+        Assert.True(newState.Board.GetTile(new Position(0, 2)).IsRevealed);
+    }
+
+    [Fact]
     public void Fetch_AnnotatesNonMajorityCheckedTiles()
     {
         // Strip: Player, Player, Rival. Most common = Player (2). Reveal both players.

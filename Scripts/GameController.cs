@@ -25,6 +25,7 @@ public partial class GameController : MarginContainer
     private readonly TargetingController _targeting = new();
     private readonly List<string> _globalClueOrder = new();
     private readonly OverlayManager _overlay = new();
+    private CardHelpPopup _cardHelp = null!;
 
     // Debug card picker
     private ColorRect _debugOverlay = null!;
@@ -68,10 +69,15 @@ public partial class GameController : MarginContainer
 
         // Hand/HUD signals
         _handDisplay.CardClicked += OnCardClicked;
+        _handDisplay.CardRightClicked += OnCardRightClicked;
         _hud.EndTurnPressed += OnEndTurnPressed;
         _hud.AnnotationTypeChanged += OnAnnotationTypeChanged;
         _hud.ViewPileRequested += OnViewPileRequested;
         _cancelButton.Pressed += OnCancelTargeting;
+
+        // Card help popup (added before overlay so its dim sits beneath the game-flow overlays)
+        _cardHelp = new CardHelpPopup();
+        AddChild(_cardHelp);
 
         // Overlay
         _overlay.Build(this);
@@ -95,7 +101,12 @@ public partial class GameController : MarginContainer
     {
         if (@event is InputEventKey { Pressed: true, Keycode: Key.Escape })
         {
-            if (_targeting.IsTargeting)
+            if (_cardHelp.IsShown)
+            {
+                _cardHelp.Hide();
+                GetViewport().SetInputAsHandled();
+            }
+            else if (_targeting.IsTargeting)
             {
                 CancelTargeting();
                 GetViewport().SetInputAsHandled();
@@ -616,6 +627,13 @@ public partial class GameController : MarginContainer
     // ───────────────────────────────────────────────
     // Card play
     // ───────────────────────────────────────────────
+
+    private void OnCardRightClicked(string cardId)
+    {
+        var card = _state.Hand.FirstOrDefault(c => c.Id == cardId);
+        if (card == null) return;
+        _cardHelp.Show(card);
+    }
 
     private void OnCardClicked(string cardId)
     {
