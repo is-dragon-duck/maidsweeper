@@ -548,10 +548,18 @@ public partial class TileView : Control
         var clues = _annotations.ClueResults;
         if (clues.Count == 0) return;
 
-        var pipRadius = 3.5f;
-        var pipSpacing = 10f;
-        var startY = 10f;
-        var rowHeight = 10f;
+        // Slightly shrunk regular pip, plus a "big pip" shorthand: when a tile
+        // accumulates 5+ pips from a single clue, render one big pip standing in
+        // for 5, followed by (n-5) regular pips. Keeps heavy-Recall results from
+        // overflowing the tile.
+        const float regularRadius = 3.0f;
+        const float regularSpacing = 8f;
+        const float bigRadius = 4.5f;
+        const float bigSlotWidth = 11f;
+        const float startY = 10f;
+        const float rowHeight = 10f;
+        const float leftMargin = 5f;
+        const int bigPipThreshold = 5;
 
         foreach (var clue in clues)
         {
@@ -559,23 +567,34 @@ public partial class TileView : Control
             if (globalRow < 0) globalRow = 0;
 
             var y = startY + globalRow * rowHeight;
-            var startX = 5f + pipRadius;
+            var x = leftMargin;
 
-            for (var i = 0; i < clue.PipStrength; i++)
+            var remaining = clue.PipStrength;
+            if (remaining >= bigPipThreshold)
             {
-                var x = startX + i * pipSpacing;
-                if (clue.IsAntiClue)
-                {
-                    // Red square for anti-clue pips
-                    var halfSize = pipRadius * 0.85f;
-                    DrawRect(new Rect2(x - halfSize, y - halfSize, halfSize * 2, halfSize * 2), AntiPipColor);
-                }
-                else
-                {
-                    // Green/gold circle for positive clue pips
-                    DrawCircle(new Vector2(x, y), pipRadius, PipColor);
-                }
+                DrawSinglePip(new Vector2(x + bigRadius, y), bigRadius, clue.IsAntiClue);
+                x += bigSlotWidth;
+                remaining -= bigPipThreshold;
             }
+
+            for (var i = 0; i < remaining; i++)
+            {
+                DrawSinglePip(new Vector2(x + regularRadius, y), regularRadius, clue.IsAntiClue);
+                x += regularSpacing;
+            }
+        }
+    }
+
+    private void DrawSinglePip(Vector2 center, float radius, bool isAntiClue)
+    {
+        if (isAntiClue)
+        {
+            var half = radius * 0.85f;
+            DrawRect(new Rect2(center.X - half, center.Y - half, half * 2, half * 2), AntiPipColor);
+        }
+        else
+        {
+            DrawCircle(center, radius, PipColor);
         }
     }
 

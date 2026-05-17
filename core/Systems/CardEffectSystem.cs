@@ -618,9 +618,12 @@ public static class CardEffectSystem
     /// Walks a 4-directional line starting from the given origin and returns every
     /// unrevealed, processable tile encountered. Stops on:
     ///   - out-of-bounds
+    ///   - destroyed tile
     ///   - unrevealed sanctum (M41 line-blocking rule)
     ///   - unreachable inner tile (M41)
-    /// Revealed tiles are passed through (line continues, but they aren't returned).
+    /// Pass-through (line continues, position not added):
+    ///   - holes (unused positions) — line of sight crosses the void
+    ///   - revealed tiles
     /// </summary>
     private static List<Position> ScanLine(Board board, Position origin, LineDirection direction)
     {
@@ -636,10 +639,18 @@ public static class CardEffectSystem
         var result = new List<Position>();
         var current = origin;
 
-        // Process the origin first (same step rules)
         while (true)
         {
-            if (!board.IsUsablePosition(current)) break;
+            // Out-of-bounds stops the line; holes (valid but unused) pass through.
+            if (!board.IsValidPosition(current)) break;
+
+            if (!board.IsUsablePosition(current))
+            {
+                current = new Position(current.Row + dRow, current.Col + dCol);
+                if (dRow == 0 && dCol == 0) break;
+                continue;
+            }
+
             var tile = board.GetTile(current);
             if (tile.IsDestroyed) break;
 

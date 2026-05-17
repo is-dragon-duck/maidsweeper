@@ -140,20 +140,46 @@ public class StretchEquipmentTests
     }
 
     [Fact]
-    public void Mirror_AnnotatesNeighborsWithPlayerAdjacency()
+    public void Mirror_RevealedRivalShowsPlayerAdjacency()
     {
+        // Mirror reveals "as Player" so the badge on the rival tile displays
+        // the player-neighbor count instead of the usual rival-neighbor count.
         var state = BlankState(
             new List<Equipment> { EquipmentDefinitions.Mirror with { Id = "m1" } });
 
         var newState = EquipmentSystem.ApplyOnFloorStart(state, new Random(7));
 
-        // Find the revealed rival; check at least one neighbor has adjacency_info annotation
         var revealedRival = newState.Board.Tiles
-            .First(t => t.IsRevealed && t.Owner == TileOwner.Rival && t.RevealedBy == PlayerType.Rival);
+            .First(t => t.IsRevealed && t.Owner == TileOwner.Rival);
+        Assert.Equal(PlayerType.Player, revealedRival.RevealedBy);
+
+        var expectedPlayerAdj = BoardSystem.CalculateAdjacency(
+            newState.Board, revealedRival.Position, PlayerType.Player);
+        Assert.Equal(expectedPlayerAdj, revealedRival.AdjacencyCount);
+    }
+
+    [Fact]
+    public void Mirror_AnnotatesThreeNeighborsWithPlayerAdjacency()
+    {
+        // Cluster picker chooses up to 3 unrevealed neighbors of the revealed rival.
+        var state = BlankState(
+            new List<Equipment> { EquipmentDefinitions.Mirror with { Id = "m1" } });
+
+        var newState = EquipmentSystem.ApplyOnFloorStart(state, new Random(7));
+
+        var revealedRival = newState.Board.Tiles
+            .First(t => t.IsRevealed && t.Owner == TileOwner.Rival);
         var neighbors = BoardSystem.GetNeighbors(newState.Board, revealedRival.Position);
-        var annotatedNeighbors = neighbors.Count(n =>
-            newState.Board.GetTile(n).Annotations.AdjacencyInfo?.PlayerCount.HasValue == true);
-        Assert.True(annotatedNeighbors > 0);
+        var annotated = neighbors.Where(n =>
+            newState.Board.GetTile(n).Annotations.AdjacencyInfo?.PlayerCount.HasValue == true).ToList();
+
+        // Up to 3 neighbors; clamp to neighbor pool size.
+        var expected = Math.Min(3, neighbors.Count(n =>
+        {
+            var t = newState.Board.GetTile(n);
+            return !t.IsRevealed && !t.IsDestroyed;
+        }));
+        Assert.Equal(expected, annotated.Count);
     }
 
     // ---------- Busy Canary ----------

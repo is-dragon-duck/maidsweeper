@@ -315,7 +315,7 @@ public static class CardDefinitions
         Id = "",
         Name = "Pose",
         Description = "Spawn a courtier on a random unrevealed player tile. Enhanced: spawns 2.",
-        Cost = 1,
+        Cost = 0,
         EffectType = CardEffectType.Pose
     };
 

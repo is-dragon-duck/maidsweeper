@@ -97,9 +97,14 @@ public static class EquipmentSystem
     }
 
     /// <summary>
-    /// Mirror: reveal one random unrevealed rival tile (by Rival, so it doesn't
-    /// trigger the player's turn-end), then add player adjacency annotations to
-    /// each of its unrevealed neighbors.
+    /// Mirror: reveal one random unrevealed rival tile so its badge shows
+    /// player-adjacency (revealed as if by the Player, since the displayed
+    /// adjacency count follows the revealer). Then annotate 3 of its unrevealed
+    /// neighbors — chosen as a connected cluster — with player-adjacency info.
+    ///
+    /// Cluster picking: pick one neighbor at random, then iteratively add the
+    /// neighbor with the most adjacencies to already-chosen tiles (random tiebreak),
+    /// twice. Tends to land on a tight 3-tile cluster.
     /// </summary>
     private static GameState ApplyMirror(GameState state, Random rng)
     {
@@ -111,17 +116,60 @@ public static class EquipmentSystem
         if (rivals.Count == 0) return state;
 
         var pick = rivals[rng.Next(rivals.Count)];
-        state = state with { Board = BoardSystem.RevealTile(state.Board, pick.Position, PlayerType.Rival) };
+        // Reveal "as Player" so the on-tile badge displays player-neighbor count.
+        // Safe at floor-start: ShouldEndTurn isn't consulted here, and a rival-owned
+        // tile flagged RevealedBy=Player doesn't trip CheckGameStatus (only nobles do).
+        state = state with { Board = BoardSystem.RevealTile(state.Board, pick.Position, PlayerType.Player) };
 
-        foreach (var neighbor in BoardSystem.GetNeighbors(state.Board, pick.Position))
+        var neighborCandidates = BoardSystem.GetNeighbors(state.Board, pick.Position)
+            .Where(p => state.Board.IsUsablePosition(p))
+            .Where(p =>
+            {
+                var t = state.Board.GetTile(p);
+                return !t.IsRevealed && !t.IsDestroyed;
+            })
+            .ToList();
+
+        var cluster = PickAdjacentCluster(state.Board, neighborCandidates, 3, rng);
+
+        foreach (var neighbor in cluster)
         {
-            var nTile = state.Board.GetTile(neighbor);
-            if (nTile.IsRevealed) continue;
             var playerCount = BoardSystem.CalculateAdjacency(state.Board, neighbor, PlayerType.Player);
             state = AnnotationSystem.AddAdjacencyInfo(state, neighbor,
                 new AdjacencyInfo { PlayerCount = playerCount });
         }
         return state;
+    }
+
+    /// <summary>
+    /// Picks up to <paramref name="size"/> positions from <paramref name="candidates"/>
+    /// that tend to be mutually adjacent. Algorithm: pick the first uniformly at random,
+    /// then each subsequent pick is the candidate with the most board-adjacencies to the
+    /// already-picked set (random tiebreak among the leaders).
+    /// </summary>
+    private static List<Position> PickAdjacentCluster(
+        Board board, List<Position> candidates, int size, Random rng)
+    {
+        if (candidates.Count <= size) return new List<Position>(candidates);
+
+        var pool = new List<Position>(candidates);
+        var chosen = new List<Position> { pool[rng.Next(pool.Count)] };
+        pool.Remove(chosen[0]);
+
+        while (chosen.Count < size && pool.Count > 0)
+        {
+            var chosenSet = new HashSet<Position>(chosen);
+            var scored = pool
+                .Select(p => (pos: p, adj: BoardSystem.GetNeighbors(board, p).Count(n => chosenSet.Contains(n))))
+                .ToList();
+            var maxAdj = scored.Max(s => s.adj);
+            var leaders = scored.Where(s => s.adj == maxAdj).Select(s => s.pos).ToList();
+            var next = leaders[rng.Next(leaders.Count)];
+            chosen.Add(next);
+            pool.Remove(next);
+        }
+
+        return chosen;
     }
 
     /// <summary>

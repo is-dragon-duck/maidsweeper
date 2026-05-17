@@ -230,6 +230,48 @@ public class GazeAndFetchTests
     // ---------- Fetch: most-common owner reveals ----------
 
     [Fact]
+    public void Fetch_PassesThroughHoles()
+    {
+        // User-supplied scenario (e.g. Level 4 checkerboard): line direction has
+        // tiles in order [Player, hole, Neutral, hole, Rival, hole, Player].
+        // Holes don't break line of sight. Most common = Player (2). Both Players revealed.
+        var tiles = new List<Tile>
+        {
+            new() { Position = new Position(0, 0), Owner = TileOwner.Player },
+            new() { Position = new Position(0, 1), Owner = TileOwner.Neutral }, // hole
+            new() { Position = new Position(0, 2), Owner = TileOwner.Neutral },
+            new() { Position = new Position(0, 3), Owner = TileOwner.Neutral }, // hole
+            new() { Position = new Position(0, 4), Owner = TileOwner.Rival },
+            new() { Position = new Position(0, 5), Owner = TileOwner.Neutral }, // hole
+            new() { Position = new Position(0, 6), Owner = TileOwner.Player }
+        };
+        var unused = new HashSet<Position>
+        {
+            new(0, 1), new(0, 3), new(0, 5)
+        };
+        var board = new Board
+        {
+            Width = 7, Height = 1, Tiles = tiles, UnusedPositions = unused
+        };
+        var state = MakeState(board);
+
+        var card = new Card
+        {
+            Id = "f1", Name = "Fetch →", Cost = 1,
+            EffectType = CardEffectType.Fetch, Direction = LineDirection.Right
+        };
+
+        var newState = CardEffectSystem.ExecuteFetch(state, new[] { new Position(0, 0) }, card, new Random(7));
+
+        Assert.True(newState.Board.GetTile(new Position(0, 0)).IsRevealed,
+            "First Player tile should be revealed");
+        Assert.True(newState.Board.GetTile(new Position(0, 6)).IsRevealed,
+            "Player tile across two holes should be revealed");
+        Assert.False(newState.Board.GetTile(new Position(0, 2)).IsRevealed);
+        Assert.False(newState.Board.GetTile(new Position(0, 4)).IsRevealed);
+    }
+
+    [Fact]
     public void Fetch_RevealsMostCommonOwnerType()
     {
         // Strip: Player, Player, Rival, Player, Neutral. Fetch right from (0,0).
